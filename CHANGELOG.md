@@ -1,3 +1,4 @@
+- Added ASIO logo to About splash screen https://github.com/GrandOrgue/grandorgue/issues/823
 - Changed log error to warning when importing combinations https://github.com/GrandOrgue/grandorgue/issues/809
 - Eased restrictions on importing .cmb settings https://github.com/GrandOrgue/grandorgue/issues/807
 - Fixed restoring the size and the position of panels when they did not fit their displays https://github.com/GrandOrgue/grandorgue/issues/787

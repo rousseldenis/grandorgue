@@ -34,7 +34,6 @@ BEGIN_EVENT_TABLE(GOrgueSplashBitmap, wxControl)
 	EVT_KEY_DOWN(GOrgueSplashBitmap::OnKey)
 END_EVENT_TABLE()
 
-
 GOrgueSplashBitmap::GOrgueSplashBitmap(wxWindow *parent, wxWindowID id, wxBitmap& bitmap) :
 wxControl(parent, id, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE),
 	m_Bitmap(bitmap)
@@ -73,7 +72,9 @@ GOrgueSplash::GOrgueSplash(bool has_timeout, wxWindow *parent, wxWindowID id) :
 	SetExtraStyle(GetExtraStyle() | wxWS_EX_TRANSIENT);
 	wxBitmap bitmap = GetImage_Splash();
 	DrawText(bitmap);
+    
 	m_Image = new GOrgueSplashBitmap(this, wxID_ANY, bitmap);
+    
 	SetClientSize(bitmap.GetWidth(), bitmap.GetHeight());
 	CentreOnScreen();
 }
@@ -82,6 +83,11 @@ void GOrgueSplash::DrawText(wxBitmap& bitmap)
 {
 	wxMemoryDC dc(bitmap);
 	wxFont font;
+
+    /* Set ASIO license image */
+    wxImage asio = GetImage_ASIO();
+    wxBitmap m_asio = (wxBitmap)asio.Scale(asio.GetWidth() * 0.1, asio.GetHeight() * 0.1, wxIMAGE_QUALITY_HIGH);
+    dc.DrawBitmap(m_asio, 70, 10);
 
 	font = *wxNORMAL_FONT;
 	font.SetPointSize(14);
