@@ -95,6 +95,11 @@ jobs:
             prepare: osx
             build_on: osx
 
+          - run_on: ghcr.io/cirruslabs/macos-ventura-xcode:latest
+            for: osx
+            prepare: osx
+            build_on: osx
+
           - run_on: ubuntu-latest
             for: win64
             prepare: ubuntu-20
