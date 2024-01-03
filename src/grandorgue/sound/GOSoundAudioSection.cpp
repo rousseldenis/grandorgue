@@ -685,15 +685,13 @@ void GOAudioSection::Setup(
       const unsigned loop_length
         = 1 + end_seg.end_offset - start_seg.start_offset;
       unsigned end_length;
-
-      if (fade_len > end_seg.end_offset - start_seg.start_offset)
-        throw(wxString) _("Loop too short for crossfade");
-
-      if (start_seg.start_offset < fade_len)
-        throw(wxString) _("Not enough samples for a crossfade");
-
-      // calculate the fade segment size and offsets
       if (end_seg.end_offset - start_seg.start_offset > SHORT_LOOP_LENGTH) {
+        if (fade_len > end_seg.end_offset - start_seg.start_offset)
+          throw(wxString) _("Loop too short for crossfade");
+
+        if (start_seg.start_offset < fade_len)
+          throw(wxString) _("Not enough samples for a crossfade");
+
         end_seg.transition_offset
           = end_seg.end_offset - MAX_READAHEAD - fade_len + 1;
         end_seg.read_end = end_seg.end_offset - fade_len;
