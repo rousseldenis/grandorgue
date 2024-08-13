@@ -8,8 +8,8 @@
 #ifndef GOPIPECONFIG_H
 #define GOPIPECONFIG_H
 
+#include <algorithm>
 #include <cstdint>
-
 #include <wx/string.h>
 
 #include "GOBool3.h"
@@ -40,9 +40,12 @@ private:
   uint16_t m_DefaultDelay;
   uint16_t m_Delay;
   uint16_t m_ReleaseTail; // the max release length in ms
+  int8_t m_ToneBalanceValue;
   int8_t m_BitsPerSample;
   int8_t m_Channels;
   int8_t m_LoopLoad;
+  GOBool3 m_Percussive;
+  GOBool3 m_IndependentRelease;
   GOBool3 m_Compress;
   GOBool3 m_AttackLoad;
   GOBool3 m_ReleaseLoad;
@@ -87,7 +90,11 @@ public:
 
   // Load default values from the ODF and and load all customizable values from
   // the .cmb
-  void Load(GOConfigReader &cfg, const wxString &group, const wxString &prefix);
+  void Load(
+    GOConfigReader &cfg,
+    const wxString &group,
+    const wxString &prefix,
+    bool isParentPercussive);
 
   // Save all customizable values to the .cmb
   void Save(GOConfigWriter &cfg);
@@ -122,6 +129,9 @@ public:
     SetPitchMember(cents, m_AutoTuningCorrection);
   }
 
+  int8_t GetToneBalanceValue() const { return m_ToneBalanceValue; }
+  void SetToneBalanceValue(int8_t value);
+
   uint16_t GetDefaultDelay() const { return m_DefaultDelay; }
   uint16_t GetDelay() const { return m_Delay; }
   void SetDelay(uint16_t delay) { SetSmallMember(delay, m_Delay); }
@@ -142,6 +152,12 @@ public:
 
   int8_t GetLoopLoad() const { return m_LoopLoad; }
   void SetLoopLoad(int8_t value) { SetSmallMember(value, m_LoopLoad); }
+
+  GOBool3 GetPercussive() const { return m_Percussive; }
+  // does not send notifications
+  void SetPercussiveFromInit(GOBool3 value) { m_Percussive = value; }
+
+  GOBool3 GetIndependentRelease() const { return m_IndependentRelease; }
 
   GOBool3 GetCompress() const { return m_Compress; }
   void SetCompress(GOBool3 value) { SetSmallMember(value, m_Compress); }

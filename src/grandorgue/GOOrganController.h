@@ -51,7 +51,6 @@ class GODocument;
 class GOSoundEngine;
 class GOSoundProvider;
 class GOSoundRecorder;
-class GOSoundSampler;
 typedef struct _GOHashType GOHashType;
 
 class GOOrganController : public GOEventDistributor,
@@ -74,6 +73,7 @@ private:
   GOAudioRecorder *m_AudioRecorder;
   GOMidiPlayer *m_MidiPlayer;
   GOMidiRecorder *m_MidiRecorder;
+  GOButtonControl *p_OnStateButton;
   int m_volume;
   wxString m_Temperament;
 

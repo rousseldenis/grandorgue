@@ -18,6 +18,7 @@
 #include <wx/sizer.h>
 #include <wx/spinctrl.h>
 #include <wx/splash.h>
+#include <wx/textctrl.h>
 #include <wx/toolbar.h>
 
 #include <algorithm>
@@ -25,6 +26,7 @@
 #include "archive/GOArchiveManager.h"
 #include "combinations/GOSetter.h"
 #include "config/GOConfig.h"
+#include "dialogs/GONewReleaseDialog.h"
 #include "dialogs/GOProgressDialog.h"
 #include "dialogs/GOSelectOrganDialog.h"
 #include "dialogs/GOSplash.h"
@@ -37,20 +39,21 @@
 #include "loader/cache/GOCacheCleaner.h"
 #include "midi/GOMidi.h"
 #include "midi/GOMidiEvent.h"
+#include "size/GOLogicalRect.h"
 #include "sound/GOSound.h"
 #include "temperaments/GOTemperament.h"
 #include "threading/GOMutexLocker.h"
+#include "wxcontrols/GOAudioGauge.h"
 
 #include "GOApp.h"
-#include "GOAudioGauge.h"
 #include "GODocument.h"
 #include "GOEvent.h"
-#include "GOLogicalRect.h"
 #include "GOOrgan.h"
 #include "GOOrganController.h"
 #include "GOPath.h"
 #include "GOProperties.h"
 #include "Images.h"
+#include "go_defs.h"
 #include "go_ids.h"
 #include "go_limits.h"
 
@@ -81,6 +84,7 @@ EVT_MENU(ID_FILE_CACHE, GOFrame::OnCache)
 EVT_MENU(ID_FILE_CACHE_DELETE, GOFrame::OnCacheDelete)
 EVT_MENU(ID_ORGAN_EDIT, GOFrame::OnOrganSettings)
 EVT_MENU(ID_MIDI_LIST, GOFrame::OnMidiList)
+EVT_MENU(ID_STOPS, GOFrame::OnStops)
 EVT_MENU(ID_MIDI_MONITOR, GOFrame::OnMidiMonitor)
 EVT_MENU(ID_AUDIO_PANIC, GOFrame::OnAudioPanic)
 EVT_MENU(ID_AUDIO_MEMSET, GOFrame::OnAudioMemset)
@@ -112,7 +116,10 @@ EVT_SLIDER(ID_METER_FRAME_SPIN, GOFrame::OnChangeSetter)
 EVT_TEXT(ID_METER_AUDIO_SPIN, GOFrame::OnSettingsVolume)
 EVT_TEXT_ENTER(ID_METER_AUDIO_SPIN, GOFrame::OnSettingsVolume)
 EVT_COMMAND(ID_METER_AUDIO_SPIN, wxEVT_SETVALUE, GOFrame::OnChangeVolume)
-
+EVT_MENU(ID_CHECK_FOR_UPDATES, GOFrame::OnUpdateCheckingRequested)
+EVT_MENU(ID_SHOW_RELEASE_CHANGELOG, GOFrame::OnNewReleaseInfoRequested)
+EVT_MENU(ID_DOWNLOAD_NEW_RELEASE, GOFrame::OnNewReleaseDownload)
+EVT_UPDATE_CHECKING_COMPLETION(GOFrame::OnUpdateCheckingCompletion)
 EVT_UPDATE_UI_RANGE(ID_FILE_RELOAD, ID_AUDIO_MEMSET, GOFrame::OnUpdateLoaded)
 EVT_UPDATE_UI_RANGE(ID_PRESET_0, ID_PRESET_LAST, GOFrame::OnUpdateLoaded)
 END_EVENT_TABLE()
@@ -233,6 +240,7 @@ GOFrame::GOFrame(
     ID_ORGAN_EDIT, _("&Organ settings"), wxEmptyString, wxITEM_CHECK);
   m_audio_menu->Append(
     ID_MIDI_LIST, _("M&idi Objects"), wxEmptyString, wxITEM_CHECK);
+  m_audio_menu->Append(ID_STOPS, _("Stops"), wxEmptyString, wxITEM_CHECK);
   m_audio_menu->AppendSeparator();
   m_audio_menu->Append(
     ID_AUDIO_STATE, _("&Sound Output State"), wxEmptyString, wxITEM_NORMAL);
@@ -250,6 +258,11 @@ GOFrame::GOFrame(
   wxMenu *help_menu = new wxMenu;
   help_menu->Append(wxID_HELP, _("&Help\tF1"), wxEmptyString, wxITEM_NORMAL);
   help_menu->Append(wxID_ABOUT, _("&About"), wxEmptyString, wxITEM_NORMAL);
+  help_menu->Append(
+    ID_CHECK_FOR_UPDATES,
+    _("&Check for updates"),
+    wxEmptyString,
+    wxITEM_NORMAL);
   m_panel_menu = new wxMenu();
 
   wxMenuBar *menu_bar = new wxMenuBar;
@@ -319,7 +332,7 @@ GOFrame::GOFrame(
     wxDefaultSize,
     choices);
   m_ToolBar->AddControl(m_ReleaseLength);
-  UpdateReleaseLength(m_config.ReleaseLength());
+  UpdateReleaseLength(0);
 
   m_ToolBar->AddTool(
     ID_TRANSPOSE,
@@ -481,8 +494,6 @@ void GOFrame::UpdateReleaseLength(unsigned releaseLength) {
 
   if (organController && organController->GetReleaseTail() != releaseLength)
     organController->SetReleaseTail(releaseLength);
-  if (m_config.ReleaseLength() != releaseLength)
-    m_config.ReleaseLength(releaseLength);
   if (m_ReleaseLength->GetSelection() != releaseLengthIndex)
     m_ReleaseLength->SetSelection(releaseLengthIndex);
 }
@@ -495,6 +506,12 @@ void GOFrame::UpdateVolumeControlWithSettings() {
 }
 
 void GOFrame::Init(const wxString &filename, bool isGuiOnly) {
+  if (m_config.CheckForUpdatesAtStartup()) {
+    // Start update checker thread that will fire events to this frame
+    m_UpdateCheckerThread = GOUpdateChecker::StartThread(
+      GOUpdateChecker::CheckReason::STARTUP, this);
+  }
+
   m_IsGuiOnly = isGuiOnly;
   Show(true);
 
@@ -525,13 +542,16 @@ void GOFrame::Init(const wxString &filename, bool isGuiOnly) {
     GetEventHandler()->AddPendingEvent(event);
   }
 
-  // Remove demo organs that have been registered from temporary (appimage)
-  // directories and they are not more valid
-  m_config.RemoveInvalidTmpOrgans();
-
   GOArchiveManager manager(m_config, m_config.OrganCachePath());
+
   manager.RegisterPackageDirectory(m_config.GetPackageDirectory());
   manager.RegisterPackageDirectory(m_config.OrganPackagePath());
+
+  // Remove demo organs that have been registered from temporary (appimage)
+  // directories and they are not more valid
+  m_config.AddOrgansFromArchives();
+  m_config.RemoveInvalidTmpOrgans();
+
   if (!filename.IsEmpty())
     SendLoadFile(filename);
   else
@@ -793,6 +813,8 @@ void GOFrame::OnUpdateLoaded(wxUpdateUIEvent &event) {
     event.Check(m_doc && m_doc->WindowExists(GODocument::ORGAN_DIALOG, NULL));
   else if (event.GetId() == ID_MIDI_LIST)
     event.Check(m_doc && m_doc->WindowExists(GODocument::MIDI_LIST, NULL));
+  else if (event.GetId() == ID_STOPS)
+    event.Check(m_doc && m_doc->WindowExists(GODocument::STOPS, NULL));
   else if (event.GetId() == ID_MIDI_LIST)
     event.Check(m_MidiMonitor);
 
@@ -849,10 +871,10 @@ void GOFrame::OnLoadRecent(wxCommandEvent &event) {
 }
 
 void GOFrame::OnLoad(wxCommandEvent &event) {
-  GOSelectOrganDialog dlg(this, _("Select organ to load"), m_config);
-  if (dlg.ShowModal() != wxID_OK)
-    return;
-  Open(*dlg.GetSelection());
+  GOSelectOrganDialog dlg(this, m_config);
+
+  if (dlg.ShowModal() == wxID_OK)
+    Open(*dlg.GetSelection());
 }
 
 void GOFrame::OnOpen(wxCommandEvent &event) {
@@ -1055,6 +1077,11 @@ void GOFrame::OnMenuClose(wxCommandEvent &event) {
 }
 
 bool GOFrame::CloseProgram(bool isForce) {
+  if (m_UpdateCheckerThread) {
+    // Stop update checking so that we can safely destruct the thread
+    m_UpdateCheckerThread->Stop();
+  }
+
   bool isClosed = CloseOrgan(isForce);
 
   if (isClosed)
@@ -1214,6 +1241,11 @@ void GOFrame::OnMidiList(wxCommandEvent &event) {
     m_doc->ShowMidiList();
 }
 
+void GOFrame::OnStops(wxCommandEvent &event) {
+  if (m_doc)
+    m_doc->ShowStops();
+}
+
 void GOFrame::OnHelp(wxCommandEvent &event) {
   GOHelpRequestor::DisplayHelp(_("User Interface"), false);
 }
@@ -1350,6 +1382,70 @@ void GOFrame::OnRenameFile(wxRenameFileEvent &event) {
     wxRemoveFile(filepath.GetFullPath());
 
   GOSyncDirectory(filepath.GetPath());
+}
+
+void GOFrame::OnUpdateCheckingRequested(wxCommandEvent &event) {
+  if (m_UpdateCheckerThread) {
+    // Update checking is already in progress, ignore request
+    return;
+  }
+  wxBeginBusyCursor();
+  m_UpdateCheckerThread = GOUpdateChecker::StartThread(
+    GOUpdateChecker::CheckReason::USER_REQUEST, this);
+}
+
+void GOFrame::OnUpdateCheckingCompletion(
+  GOUpdateChecker::CompletionEvent &event) {
+  // Remove update checker thread
+  m_UpdateCheckerThread->Wait();
+  m_UpdateCheckerThread = nullptr;
+
+  // Handle result
+  const GOUpdateChecker::Result &result = event.GetResult();
+  if (result.checkReason == GOUpdateChecker::CheckReason::USER_REQUEST) {
+    wxEndBusyCursor();
+    if (result.successful) {
+      if (result.updateAvailable) {
+        GONewReleaseDialog dialog(
+          this, m_config, event.GetResult().latestRelease);
+        if (dialog.ShowModal() == wxID_OK) {
+          m_config.Flush();
+        }
+      } else {
+        wxMessageBox(
+          _("You are using the latest GrandOrgue version"),
+          _("Update checker"));
+      }
+    } else {
+      wxMessageBox(
+        _("Failed to check for updates: %s").Format(result.errorMessage));
+    }
+  } else if (
+    result.checkReason == GOUpdateChecker::CheckReason::STARTUP
+    && result.successful && result.updateAvailable) {
+    m_StartupUpdateCheckerResult = result;
+    wxMenu *updateAvailableMenu = new wxMenu();
+    wxString versionChangeStr
+      = wxString::Format("%s -> %s", APP_VERSION, result.latestRelease.version);
+    updateAvailableMenu->Append(ID_SHOW_RELEASE_CHANGELOG, versionChangeStr);
+    updateAvailableMenu->Append(
+      ID_SHOW_RELEASE_CHANGELOG, _("&Show changelog"));
+    updateAvailableMenu->Append(ID_DOWNLOAD_NEW_RELEASE, _("&Download"));
+    wxMenuBar *menuBar = GetMenuBar();
+    menuBar->Append(updateAvailableMenu, _("&Update available!"));
+  }
+}
+
+void GOFrame::OnNewReleaseInfoRequested(wxCommandEvent &event) {
+  GONewReleaseDialog dialog(
+    this, m_config, m_StartupUpdateCheckerResult.latestRelease);
+  if (dialog.ShowModal() == wxID_OK) {
+    m_config.Flush();
+  }
+}
+
+void GOFrame::OnNewReleaseDownload(wxCommandEvent &event) {
+  GOUpdateChecker::OpenDownloadPageInBrowser();
 }
 
 bool GOFrame::InstallOrganPackage(wxString name) {

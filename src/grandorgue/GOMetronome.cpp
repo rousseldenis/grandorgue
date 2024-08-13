@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -104,21 +104,22 @@ void GOMetronome::Load(GOConfigReader &cfg) {
 
   GOWindchest *windchest = new GOWindchest(*m_OrganController);
   windchest->Init(cfg, wxT("MetronomeWindchest"), _("Metronome"));
-  unsigned samplegroup = m_OrganController->AddWindchest(windchest);
+  windchest->GetPipeConfig().GetPipeConfig().SetPercussiveFromInit(BOOL3_TRUE);
+  unsigned windchestN = m_OrganController->AddWindchest(windchest);
 
   m_rank = new GORank(*m_OrganController);
-  m_rank->Init(cfg, wxT("MetronomSounds"), _("Metronome"), 36, samplegroup);
+  m_rank->Init(cfg, wxT("MetronomSounds"), _("Metronome"), 36, windchestN);
   m_StopID = m_rank->RegisterStop(NULL);
   m_OrganController->AddRank(m_rank);
 
   GOSoundingPipe *pipe;
   pipe = new GOSoundingPipe(
-    m_OrganController, m_rank, true, samplegroup, 36, 8, 100, 100, false);
+    m_OrganController, m_rank, windchestN, 36, 8, 100, 100, false);
   m_rank->AddPipe(pipe);
   pipe->Init(
     cfg, wxT("MetronomSounds"), wxT("A"), wxT("sounds\\metronome\\beat.wv"));
   pipe = new GOSoundingPipe(
-    m_OrganController, m_rank, true, samplegroup, 37, 8, 100, 100, false);
+    m_OrganController, m_rank, windchestN, 37, 8, 100, 100, false);
   m_rank->AddPipe(pipe);
   pipe->Init(
     cfg,

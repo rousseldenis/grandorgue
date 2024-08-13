@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -44,8 +44,7 @@ private:
    */
   std::vector<unsigned> m_MaxNoteVelocities;
   unsigned m_FirstMidiNoteNumber;
-  bool m_Percussive;
-  unsigned m_WindchestGroup;
+  unsigned m_WindchestN; // starts with 1
   unsigned m_HarmonicNumber;
   float m_MinVolume;
   float m_MaxVolume;
@@ -68,11 +67,19 @@ public:
   ~GORank();
   void Init(
     GOConfigReader &cfg,
-    wxString group,
-    wxString name,
-    int first_midi_note_number,
-    unsigned windchest);
-  void Load(GOConfigReader &cfg, wxString group, int first_midi_note_number);
+    const wxString &group,
+    const wxString &name,
+    unsigned firstMidiNoteNumber,
+    unsigned windchestN);
+  /**
+   * Loads Rank from odf/cmb
+   * @param cfg
+   * @param group
+   * @param firstMidiNoteNumber. -1 means no default and must be specified in
+   *   the ODF
+   */
+  void Load(
+    GOConfigReader &cfg, const wxString &group, int defaultFirstMidiNoteNumber);
   void AddPipe(GOPipe *pipe);
   unsigned RegisterStop(GOStop *stop);
   void SetKey(int note, unsigned velocity, unsigned stopID);

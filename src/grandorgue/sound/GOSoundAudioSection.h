@@ -11,13 +11,13 @@
 #include <assert.h>
 #include <math.h>
 
+#include "GOBool3.h"
 #include "GOInt.h"
 #include "GOSoundCompress.h"
-#include "GOSoundDefs.h"
 #include "GOSoundResample.h"
 #include "GOWave.h"
 
-class GOAudioSection;
+class GOSoundAudioSection;
 class GOCache;
 class GOCacheObject;
 class GOCacheWriter;
@@ -26,105 +26,52 @@ class GOMemoryPool;
 class GOSoundReleaseAlignTable;
 class GOSampleStatistic;
 
-struct audio_section_stream_s;
+class GOSoundAudioSection {
+public:
+  static const unsigned getMaxReadAhead();
 
-typedef void (*DecodeBlockFunction)(
-  audio_section_stream_s *stream, float *output, unsigned int n_blocks);
+  struct StartSegment {
+    /* Sample offset into entire audio section where data begins. */
+    unsigned start_offset;
 
-typedef struct audio_start_data_segment_s {
-  /* Sample offset into entire audio section where data begins. */
-  unsigned start_offset;
+    DecompressionCache cache;
+  };
 
-  DecompressionCache cache;
+  /**
+   * This segment contains copy of samples from a loop end and then from the
+   * loop start. It is necessary for read-ahead when resampling
+   */
+  struct EndSegmentDescription {
+    /* A position after the last copied sample in the end segment.
+     * An end segment has more MAX_READAHEAD samples after end_pos:
+     *     - A loop end segment contains a copy of samples from the loop start
+     *     - A release end segment contains zero samples
+     */
+    unsigned end_pos;
 
-} audio_start_data_segment;
+    /* Sample offset where the uncompressed end data blob begins (must be less
+     * than end_pos). */
+    unsigned transition_offset;
 
-typedef struct audio_end_data_segment_s {
-  /* Sample offset where the loop ends and needs to jump into the next
-   * start segment. */
-  unsigned end_offset;
+    // The size of the end data in bytes
+    unsigned end_size;
 
-  /* Sample offset where the uncompressed end data blob begins (must be less
-   * than end_offset). */
-  unsigned transition_offset;
+    /* Index of the next section segment to be played (-1 indicates the
+     * end of the blob. */
+    int next_start_segment_index;
+  };
 
-  /* Uncompressed ending data blob. This data must start before sample_offset*/
-  unsigned char *end_data;
-  unsigned char *end_ptr;
-  unsigned read_end;
-  unsigned end_pos;
-  unsigned end_size;
-  unsigned end_loop_length;
+  struct EndSegment : public EndSegmentDescription {
+    /* Uncompressed ending data blob. This data must start before
+     * sample_offset*/
+    unsigned char *end_data;
 
-  /* Index of the next section segment to be played (-1 indicates the
-   * end of the blob. */
-  int next_start_segment_index;
+    // A virtual pointer to end_data. end_data has transition_offset to end_ptr
+    unsigned char *end_ptr;
+  };
 
-} audio_end_data_segment;
-
-typedef struct audio_section_stream_s {
-  const GOAudioSection *audio_section;
-  const struct resampler_coefs_s *resample_coefs;
-
-  /* Method used to decode stream */
-  DecodeBlockFunction decode_call;
-
-  /* Cached method used to decode the data in end_ptr. This is just the
-   * uncompressed version of decode_call */
-  DecodeBlockFunction end_decode_call;
-
-  /* Used for both compressed and uncompressed decoding */
-  const unsigned char *ptr;
-
-  /* Derived from the start and end audio segments which were used to setup
-   * this stream. */
-  const audio_end_data_segment *end_seg;
-  const unsigned char *end_ptr;
-  unsigned margin;
-  unsigned transition_position;
-  unsigned read_end;
-  unsigned end_pos;
-
-  unsigned position_index;
-  unsigned position_fraction;
-  unsigned increment_fraction;
-
-  /* for decoding compressed format */
-  DecompressionCache cache;
-} audio_section_stream;
-
-class GOAudioSection {
 private:
-  template <class T>
-  static void MonoUncompressedLinear(
-    audio_section_stream *stream, float *output, unsigned int n_blocks);
-  template <class T>
-  static void StereoUncompressedLinear(
-    audio_section_stream *stream, float *output, unsigned int n_blocks);
-  template <class T>
-  static void MonoUncompressedPolyphase(
-    audio_section_stream *stream, float *output, unsigned int n_blocks);
-  template <class T>
-  static void StereoUncompressedPolyphase(
-    audio_section_stream *stream, float *output, unsigned int n_blocks);
-  template <bool format16>
-  static void MonoCompressedLinear(
-    audio_section_stream *stream, float *output, unsigned int n_blocks);
-  template <bool format16>
-  static void StereoCompressedLinear(
-    audio_section_stream *stream, float *output, unsigned int n_blocks);
-
-  static DecodeBlockFunction GetDecodeBlockFunction(
-    unsigned channels,
-    unsigned bits_per_sample,
-    bool compressed,
-    interpolation_type interpolation,
-    bool is_end);
-  static unsigned GetMargin(bool compressed, interpolation_type interpolation);
-
   void Compress(bool format16);
-
-  unsigned PickEndSegment(unsigned start_segment_index) const;
 
   void GetMaxAmplitudeAndDerivative();
 
@@ -133,17 +80,15 @@ private:
     unsigned dest_offset,
     const unsigned char *src,
     unsigned src_offset,
-    unsigned channels,
-    unsigned bits_per_sample,
     unsigned fade_length,
     unsigned loop_length,
     unsigned length);
 
-  std::vector<audio_start_data_segment> m_StartSegments;
-  std::vector<audio_end_data_segment> m_EndSegments;
+  std::vector<StartSegment> m_StartSegments;
+  std::vector<EndSegment> m_EndSegments;
 
   /* Pointer to (size) bytes of data encoded in the format (type) */
-  unsigned char *m_Data;
+  unsigned char *m_data;
 
   /* If this is a release section, it may contain an alignment table */
   GOSoundReleaseAlignTable *m_ReleaseAligner;
@@ -156,10 +101,12 @@ private:
   unsigned m_SampleRate;
 
   /* Type of the data which is stored in the data pointer */
-  unsigned m_Compressed;
-  unsigned m_BitsPerSample;
-  unsigned m_BytesPerSample;
-  unsigned m_Channels;
+  uint8_t m_BitsPerSample;
+  uint8_t m_BytesPerSample;
+  uint8_t m_channels;
+
+  GOBool3 m_WaveTremulantStateFor;
+  bool m_IsCompressed;
 
   /* Size of the section in BYTES */
   GOMemoryPool &m_Pool;
@@ -170,38 +117,113 @@ private:
   int m_MaxAbsDerivative;
   unsigned m_ReleaseCrossfadeLength; // in ms
 
-public:
-  GOAudioSection(GOMemoryPool &pool);
-  ~GOAudioSection();
   void ClearData();
-  unsigned GetChannels() const;
-  unsigned GetBytesPerSample() const;
-  unsigned GetLength() const;
+
+  template <typename T>
+  inline static int getSampleData(
+    const T *data, unsigned position, uint8_t channels, uint8_t channel) {
+    return data[position * channels + channel];
+  }
+
+  inline static int getSampleData(
+    const unsigned char *sampleData,
+    unsigned position,
+    uint8_t channels,
+    uint8_t channel,
+    uint8_t bitsPerSample) {
+    int res;
+
+    if (bitsPerSample <= 8)
+      res = getSampleData(
+        (const GOInt8 *)sampleData, position, channels, channel);
+    else if (bitsPerSample <= 16)
+      res = getSampleData(
+        (const GOInt16 *)sampleData, position, channels, channel);
+    else if (bitsPerSample <= 24)
+      res = getSampleData(
+        (const GOInt24 *)sampleData, position, channels, channel);
+    else {
+      assert(0 && "broken sampler type");
+      res = 0;
+    }
+    return res;
+  }
+
+  template <typename T>
+  inline static void setSampleData(
+    T *data, unsigned position, uint8_t channels, uint8_t channel, int value) {
+    data[position * channels + channel] = value;
+  }
+
+  inline static void setSampleData(
+    unsigned char *sampleData,
+    unsigned position,
+    uint8_t channels,
+    uint8_t channel,
+    uint8_t bitsPerSample,
+    int value) {
+    if (bitsPerSample <= 8)
+      setSampleData((GOInt8 *)sampleData, position, channels, channel, value);
+    else if (bitsPerSample <= 16)
+      setSampleData((GOInt16 *)sampleData, position, channels, channel, value);
+    else if (bitsPerSample <= 24)
+      setSampleData((GOInt24 *)sampleData, position, channels, channel, value);
+    else
+      assert(0 && "broken sampler type");
+  }
+
+  inline void SetSampleData(
+    unsigned char *sampleData, unsigned position, uint8_t channel, int value) {
+    setSampleData(
+      sampleData, position, m_channels, channel, m_BitsPerSample, value);
+  }
+
+public:
+  inline static unsigned limitedDiff(unsigned a, unsigned b) {
+    return (a > b) ? a - b : 0;
+  }
+
+  GOSoundAudioSection(GOMemoryPool &pool);
+  ~GOSoundAudioSection() { ClearData(); }
+
+  GOSoundReleaseAlignTable *GetReleaseAligner() const {
+    return m_ReleaseAligner;
+  }
+  unsigned GetReleaseStartSegment() const { return m_ReleaseStartSegment; }
+  unsigned GetSampleRate() const { return m_SampleRate; }
+  uint8_t GetBitsPerSample() const { return m_BitsPerSample; }
+  uint8_t GetBytesPerSample() const { return m_BytesPerSample; }
+  inline uint8_t GetChannels() const { return m_channels; }
+  bool IsCompressed() const { return m_IsCompressed; }
+
+  inline GOBool3 GetWaveTremulantStateFor() const {
+    return m_WaveTremulantStateFor;
+  }
+
+  inline unsigned GetLength() const { return m_SampleCount; }
+
   unsigned GetReleaseCrossfadeLength() const {
     return m_ReleaseCrossfadeLength;
   }
 
+  const StartSegment &GetStartSegment(unsigned index) const {
+    return m_StartSegments[index];
+  }
+
+  const EndSegment &GetEndSegment(unsigned index) const {
+    return m_EndSegments[index];
+  }
+
+  const unsigned char *GetData() const { return m_data; }
+
+  inline int GetSampleData(
+    const unsigned char *sampleData, unsigned position, uint8_t channel) const {
+    return getSampleData(
+      sampleData, position, m_channels, channel, m_BitsPerSample);
+  }
+
   bool LoadCache(GOCache &cache);
   bool SaveCache(GOCacheWriter &cache) const;
-
-  /* Initialize a stream to play this audio section and seek into it using
-   * release alignment if available. */
-  void InitAlignedStream(
-    audio_section_stream *stream,
-    const audio_section_stream *existing_stream) const;
-
-  /* Initialize a stream to play this audio section */
-  void InitStream(
-    const struct resampler_coefs_s *resampler_coefs,
-    audio_section_stream *stream,
-    float sample_rate_adjustment) const;
-
-  /* Read an audio buffer from an audio section stream */
-  static bool ReadBlock(
-    audio_section_stream *stream, float *buffer, unsigned int n_blocks);
-  static void GetHistory(
-    const audio_section_stream *stream,
-    int history[BLOCK_HISTORY][MAX_OUTPUT_CHANNELS]);
 
   void Setup(
     const GOCacheObject *pObjectFor,
@@ -212,124 +234,49 @@ public:
     unsigned pcm_data_sample_rate,
     unsigned pcm_data_nb_samples,
     const std::vector<GOWaveLoop> *loop_points,
+    GOBool3 waveTremulantStateFor,
     bool compress,
     unsigned loopCrossfadeLength,
     unsigned releaseCrossfadeLength);
 
-  bool IsOneshot() const;
+  inline bool IsOneshot() const {
+    return (m_EndSegments.size() == 1)
+      && (m_EndSegments[0].next_start_segment_index < 0);
+  }
 
-  static int GetSampleData(
+  unsigned PickEndSegment(unsigned start_segment_index) const;
+
+  inline int GetSample(
     unsigned position,
     unsigned channel,
-    unsigned bits_per_sample,
-    unsigned channels,
-    const unsigned char *data);
-  static void SetSampleData(
-    unsigned position,
-    unsigned channel,
-    unsigned bits_per_sample,
-    unsigned channels,
-    unsigned value,
-    unsigned char *data);
+    DecompressionCache *cache = nullptr) const {
+    if (!m_IsCompressed) {
+      return GetSampleData(m_data, position, channel);
+    } else {
+      DecompressionCache tmp;
+      if (!cache) {
+        cache = &tmp;
+        InitDecompressionCache(*cache);
+      }
 
-  int GetSample(
-    unsigned position,
-    unsigned channel,
-    DecompressionCache *cache = NULL) const;
+      assert(m_BitsPerSample >= 12);
+      DecompressTo(
+        *cache, position, m_data, m_channels, (m_BitsPerSample >= 20));
+      return cache->value[channel];
+    }
+  }
 
-  float GetNormGain() const;
-  unsigned GetSampleRate() const;
-  bool SupportsStreamAlignment() const;
+  inline float GetNormGain() const {
+    return scalbnf(1.0f, -((int)m_SampleFracBits));
+  }
+
+  inline bool SupportsStreamAlignment() const { return (m_ReleaseAligner); }
+
   void SetupStreamAlignment(
-    const std::vector<const GOAudioSection *> &joinables, unsigned start_index);
+    const std::vector<const GOSoundAudioSection *> &joinables,
+    unsigned start_index);
 
   GOSampleStatistic GetStatistic();
 };
-
-inline unsigned GOAudioSection::GetChannels() const { return m_Channels; }
-
-inline unsigned GOAudioSection::GetBytesPerSample() const {
-  return (m_Compressed) ? 0 : (m_BitsPerSample / 8);
-}
-
-inline unsigned GOAudioSection::GetLength() const { return m_SampleCount; }
-
-inline bool GOAudioSection::IsOneshot() const {
-  return (m_EndSegments.size() == 1)
-    && (m_EndSegments[0].next_start_segment_index < 0);
-}
-
-inline int GOAudioSection::GetSampleData(
-  unsigned position,
-  unsigned channel,
-  unsigned bits_per_sample,
-  unsigned channels,
-  const unsigned char *sample_data) {
-  if (bits_per_sample <= 8) {
-    GOInt8 *data = (GOInt8 *)sample_data;
-    return data[position * channels + channel];
-  }
-  if (bits_per_sample <= 16) {
-    GOInt16 *data = (GOInt16 *)sample_data;
-    return data[position * channels + channel];
-  }
-  if (bits_per_sample <= 24) {
-    GOInt24 *data = (GOInt24 *)sample_data;
-    return data[position * channels + channel];
-  }
-  assert(0 && "broken sampler type");
-  return 0;
-}
-
-inline int GOAudioSection::GetSample(
-  unsigned position, unsigned channel, DecompressionCache *cache) const {
-  if (!m_Compressed) {
-    return GetSampleData(
-      position, channel, m_BitsPerSample, m_Channels, m_Data);
-  } else {
-    DecompressionCache tmp;
-    if (!cache) {
-      cache = &tmp;
-      InitDecompressionCache(*cache);
-    }
-
-    assert(m_BitsPerSample >= 12);
-    DecompressTo(*cache, position, m_Data, m_Channels, (m_BitsPerSample >= 20));
-    return cache->value[channel];
-  }
-}
-
-inline void GOAudioSection::SetSampleData(
-  unsigned position,
-  unsigned channel,
-  unsigned bits_per_sample,
-  unsigned channels,
-  unsigned value,
-  unsigned char *sample_data) {
-  if (bits_per_sample <= 8) {
-    GOInt8 *data = (GOInt8 *)sample_data;
-    data[position * channels + channel] = value;
-    return;
-  }
-  if (bits_per_sample <= 16) {
-    GOInt16 *data = (GOInt16 *)sample_data;
-    data[position * channels + channel] = value;
-    return;
-  }
-  if (bits_per_sample <= 24) {
-    GOInt24 *data = (GOInt24 *)sample_data;
-    data[position * channels + channel] = value;
-    return;
-  }
-  assert(0 && "broken sampler type");
-}
-
-inline float GOAudioSection::GetNormGain() const {
-  return scalbnf(1.0f, -((int)m_SampleFracBits));
-}
-
-inline bool GOAudioSection::SupportsStreamAlignment() const {
-  return (m_ReleaseAligner != NULL);
-}
 
 #endif /* GOSOUNDAUDIOSECTION_H_ */

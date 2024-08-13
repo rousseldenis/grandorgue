@@ -26,19 +26,18 @@ class GOSoundingPipe : public GOPipe,
                        private GOPipeWindchestCallback {
 private:
   GOOrganModel *p_OrganModel;
-  GOSoundSampler *m_Sampler;
+  GOSoundSampler *p_CurrentLoopSampler;
+  uint64_t m_LastStart;
   uint64_t m_LastStop;
   int m_Instances;
-  bool m_Tremulant;
   std::vector<GOSoundProviderWave::AttackFileInfo> m_AttackFileInfos;
   std::vector<GOSoundProviderWave::ReleaseFileInfo> m_ReleaseFileInfos;
   wxString m_Filename;
 
   /* states which windchest this pipe belongs to, see
    * GOSoundEngine::StartSampler */
-  int m_SamplerGroupID;
+  unsigned m_WindchestN; // starts with 1
   unsigned m_AudioGroupID;
-  bool m_Percussive;
   float m_TemperamentOffset;
   unsigned m_HarmonicNumber;
   float m_MinVolume;
@@ -92,6 +91,7 @@ private:
   void UpdateTuning() override;
   void UpdateAudioGroup() override;
   void UpdateReleaseTail() override;
+  void UpdateToneBalance() override;
   void SetTemperament(const GOTemperament &temperament) override;
 
   // Callbacks from the sound engine
@@ -100,10 +100,10 @@ private:
 
   // Callbacks from the console
   /**
-   * Called when the tremulant is switched on or off
+   * Called when a wave tremulant is switched on or off
    * @param on the new tremulant state
    */
-  void SetTremulant(bool on) override;
+  void SetWaveTremulant(bool on) override;
   /**
    * Called when the key is just pressed, released or the velocity is changed
    * @param velocity the velocity of key pressing. 0 means release
@@ -113,10 +113,9 @@ private:
 
 public:
   GOSoundingPipe(
-    GOOrganModel *organController,
+    GOOrganModel *pOrganModel,
     GORank *rank,
-    bool percussive,
-    int sampler_group_id,
+    unsigned windchestN,
     unsigned midi_key_number,
     unsigned harmonic_number,
     float min_volume,
@@ -128,7 +127,8 @@ public:
     const wxString &group,
     const wxString &prefix,
     const wxString &filename);
-  void Load(GOConfigReader &cfg, wxString group, wxString prefix);
+  void Load(GOConfigReader &cfg, const wxString &group, const wxString &prefix)
+    override;
 };
 
 #endif

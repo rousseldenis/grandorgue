@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -25,26 +25,14 @@
 #include "settings/GOSettingNumber.h"
 #include "settings/GOSettingStore.h"
 #include "settings/GOSettingString.h"
+#include "size/GOLogicalRect.h"
 #include "temperaments/GOTemperamentList.h"
 
-#include "GOLogicalRect.h"
+#include "GOAudioDeviceConfig.h"
 #include "GOMidiDeviceConfigList.h"
 #include "GOOrganList.h"
 #include "GOPortsConfig.h"
 #include "ptrvector.h"
-
-typedef struct {
-  wxString name;
-  float left;
-  float right;
-} GOAudioGroupOutputConfig;
-
-typedef struct {
-  wxString name;
-  unsigned channels;
-  unsigned desired_latency;
-  std::vector<std::vector<GOAudioGroupOutputConfig>> scale_factors;
-} GOAudioDeviceConfig;
 
 typedef struct {
   GOMidiReceiverType type;
@@ -75,6 +63,8 @@ private:
   static const struct IniFileEnumEntry m_InitialLoadTypes[];
 
   wxString GetEventSection(unsigned index);
+
+  void LoadDefaults();
 
 public:
   GOConfig(wxString instance);
@@ -121,7 +111,6 @@ public:
   GOSettingInteger Volume;
   GOSettingUnsigned PolyphonyLimit;
   GOSettingUnsigned Preset;
-  GOSettingUnsigned ReleaseLength;
   GOSettingString LanguageCode;
 
   class GOSettingUnsignedBit : public GOSettingUnsigned {
@@ -160,6 +149,8 @@ public:
   GOSettingDirectory MidiRecorderPath;
   GOSettingDirectory MidiPlayerPath;
 
+  GOSettingBool CheckForUpdatesAtStartup;
+
   GOMidiDeviceConfigList m_MidiIn;
   GOMidiDeviceConfigList m_MidiOut;
 
@@ -193,7 +184,9 @@ public:
     m_SoundPortsConfig = portsConfig;
   }
 
-  const std::vector<GOAudioDeviceConfig> &GetAudioDeviceConfig();
+  std::vector<GOAudioDeviceConfig> &GetAudioDeviceConfig() {
+    return m_AudioDeviceConfig;
+  }
   const unsigned GetTotalAudioChannels() const;
   void SetAudioDeviceConfig(const std::vector<GOAudioDeviceConfig> &config);
   unsigned GetDefaultLatency();

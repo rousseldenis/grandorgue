@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -22,6 +22,8 @@ public:
 
 private:
   static const struct IniFileEnumEntry m_coupler_types[];
+
+  bool m_IsVirtual;
   bool m_UnisonOff;
   bool m_CoupleToSubsequentUnisonIntermanualCouplers;
   bool m_CoupleToSubsequentUpwardIntermanualCouplers;
@@ -55,7 +57,15 @@ private:
   void PreparePlayback();
 
 public:
-  GOCoupler(GOOrganModel &organModel, unsigned sourceManual);
+  GOCoupler(
+    GOOrganModel &organModel, unsigned sourceManual, bool isVirtual = false);
+
+  bool IsVirtual() const { return m_IsVirtual; }
+  bool IsRecursive() const {
+    return m_CoupleToSubsequentUnisonIntermanualCouplers;
+  }
+  void SetRecursive(bool isRecursive);
+
   void Init(
     GOConfigReader &cfg,
     wxString group,
@@ -66,6 +76,10 @@ public:
     int dest_manual,
     GOCouplerType coupler_type);
   void Load(GOConfigReader &cfg, wxString group);
+
+  // send key states for all chained couplers
+  void RefreshState();
+
   void SetKey(
     unsigned note,
     const std::vector<unsigned> &velocities,

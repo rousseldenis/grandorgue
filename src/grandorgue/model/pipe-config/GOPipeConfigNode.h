@@ -112,6 +112,8 @@ public:
 
   uint16_t GetEffectiveReleaseTail() const;
 
+  int8_t GetEffectiveToneBalanceValue() const;
+
   uint8_t GetEffectiveBitsPerSample() const {
     return GetEffectiveUint8(
       &GOPipeConfig::GetBitsPerSample,
@@ -131,6 +133,20 @@ public:
       &GOPipeConfig::GetLoopLoad,
       &GOPipeConfigNode::GetEffectiveLoopLoad,
       &GOConfig::LoopLoad);
+  }
+
+  bool GetEffectivePercussive() const {
+    return GetEffectiveBool(
+      &GOPipeConfig::GetPercussive,
+      &GOPipeConfigNode::GetEffectivePercussive,
+      (const GOSettingUnsigned GOConfig::*)nullptr);
+  }
+
+  bool IsEffectiveIndependentRelease() const {
+    return GetEffectiveBool(
+      &GOPipeConfig::GetIndependentRelease,
+      &GOPipeConfigNode::IsEffectiveIndependentRelease,
+      (const GOSettingUnsigned GOConfig::*)nullptr);
   }
 
   bool GetEffectiveCompress() const {

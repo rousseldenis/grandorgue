@@ -7,6 +7,7 @@
 
 #include "GOOrganController.h"
 
+#include <algorithm>
 #include <math.h>
 #include <wx/datetime.h>
 #include <wx/filename.h>
@@ -97,6 +98,7 @@ GOOrganController::GOOrganController(
     m_AudioRecorder(NULL),
     m_MidiPlayer(NULL),
     m_MidiRecorder(NULL),
+    p_OnStateButton(nullptr),
     m_volume(0),
     m_b_customized(false),
     m_CurrentPitch(999999.0), // for enforcing updating the label first time
@@ -122,10 +124,12 @@ GOOrganController::GOOrganController(
     m_MainWindowData(this, wxT("MainWindow")) {
   GOOrganModel::SetMidiDialogCreator(pMidiDialogCreator);
   GOOrganModel::SetModelModificationListener(this);
+  m_setter = new GOSetter(this);
   m_pool.SetMemoryLimit(m_config.MemoryLimit() * 1024 * 1024);
 }
 
 GOOrganController::~GOOrganController() {
+  p_OnStateButton = nullptr;
   m_FileStore.CloseArchives();
   GOEventHandlerList::Cleanup();
   // Just to be sure, that the sound providers are freed before the pool
@@ -175,18 +179,17 @@ bool GOOrganController::IsCacheable() { return m_Cacheable; }
 
 GOHashType GOOrganController::GenerateCacheHash() {
   GOHash hash;
+
   UpdateHash(hash);
-  hash.Update(sizeof(GOAudioSection));
+  hash.Update(sizeof(GOSoundAudioSection));
   hash.Update(sizeof(GOSoundingPipe));
   hash.Update(sizeof(GOSoundReleaseAlignTable));
   hash.Update(BLOCK_HISTORY);
-  hash.Update(MAX_READAHEAD);
+  hash.Update(GOSoundAudioSection::getMaxReadAhead());
   hash.Update(SHORT_LOOP_LENGTH);
-  hash.Update(sizeof(attack_section_info));
-  hash.Update(sizeof(release_section_info));
-  hash.Update(sizeof(audio_start_data_segment));
-  hash.Update(sizeof(audio_end_data_segment));
-
+  GOSoundProvider::UpdateCacheHash(hash);
+  hash.Update(sizeof(GOSoundAudioSection::StartSegment));
+  hash.Update(sizeof(GOSoundAudioSection::EndSegment));
   return hash.getHash();
 }
 
@@ -207,31 +210,25 @@ void GOOrganController::ReadOrganFile(GOConfigReader &cfg) {
   wxString info_filename
     = cfg.ReadFileName(ODFSetting, WX_ORGAN, wxT("InfoFilename"), false);
   wxFileName fn;
+  m_InfoFilename = wxEmptyString;
   if (info_filename.IsEmpty()) {
     /* Resolve organ file path */
     fn = GetODFFilename();
     fn.SetExt(wxT("html"));
     if (fn.FileExists() && !m_FileStore.AreArchivesUsed())
       m_InfoFilename = fn.GetFullPath();
-    else
-      m_InfoFilename = wxEmptyString;
   } else {
-    GOLoaderFilename fname;
-
-    fname.Assign(info_filename);
-    std::unique_ptr<GOOpenedFile> file = fname.Open(m_FileStore);
-    fn = info_filename;
-    if (
-      file->isValid()
-      && (fn.GetExt() == wxT("html") || fn.GetExt() == wxT("htm"))) {
-      if (fn.FileExists() && !m_FileStore.AreArchivesUsed())
+    if (!m_FileStore.AreArchivesUsed()) {
+      fn = GOLoaderFilename::generateFullPath(
+        info_filename, wxFileName(GetODFFilename()).GetPath());
+      if (
+        fn.FileExists()
+        && (fn.GetExt() == wxT("html") || fn.GetExt() == wxT("htm")))
         m_InfoFilename = fn.GetFullPath();
-      else
-        m_InfoFilename = wxEmptyString;
-    } else {
-      m_InfoFilename = wxEmptyString;
-      if (m_config.ODFCheck())
-        wxLogWarning(_("InfoFilename does not point to a html file"));
+      else if (m_config.ODFCheck())
+        wxLogWarning(
+          _("InfoFilename %s either does not exist or is not a html file"),
+          fn.GetFullPath());
     }
   }
 
@@ -248,13 +245,12 @@ void GOOrganController::ReadOrganFile(GOConfigReader &cfg) {
 
   // It must be created before GOOrganModel::Load because lots of objects
   // reference to it
-  m_setter = new GOSetter(this);
   GOOrganModel::SetCombinationController(m_setter);
   m_elementcreators.push_back(m_setter);
 
   GOOrganModel::Load(cfg);
 
-  m_VirtualCouplers.Init(*this, cfg);
+  m_VirtualCouplers.Load(*this, cfg);
 
   GOOrganModel::LoadCmbButtons(cfg);
 
@@ -279,6 +275,14 @@ void GOOrganController::ReadOrganFile(GOConfigReader &cfg) {
 
   for (unsigned i = 0; i < m_elementcreators.size(); i++)
     m_elementcreators[i]->Load(cfg);
+
+  p_OnStateButton = GetButtonControl(GOSetter::KEY_ON_STATE);
+
+  if (p_OnStateButton) {
+    // we do not want to send midi events on m_OnStateButton together with
+    // other events. They will be sent separately.
+    UnRegisterSoundStateHandler(p_OnStateButton);
+  }
 
   m_PitchLabel.Load(cfg, wxT("SetterMasterPitch"), _("organ pitch"));
   m_TemperamentLabel.Load(
@@ -643,7 +647,10 @@ wxString GOOrganController::ExportCombination(const wxString &fileName) {
 
     outYaml << YAML::BeginDoc << globalNode;
 
-    if (fOS.WriteAll(outYaml.c_str(), outYaml.size()))
+    static const uint8_t utf8bom[] = {0xEF, 0xBB, 0xBF};
+    if (
+      fOS.WriteAll(utf8bom, sizeof(utf8bom))
+      && fOS.WriteAll(outYaml.c_str(), outYaml.size()))
       m_setter->OnCombinationsSaved(fileName);
     else
       errMsg.Printf(
@@ -686,6 +693,41 @@ bool GOOrganController::IsToImportCombinationsFor(
   return isToImport;
 }
 
+static std::vector<char> load_file_bytes(const wxString &filePath) {
+  wxFile file;
+  if (!file.Open(filePath)) {
+    throw wxString::Format(
+      _("Failed to open '%s': %s"), filePath, strerror(file.GetLastError()));
+  }
+  std::vector<char> content;
+  content.reserve(file.Length());
+  char buf[8 * 1024]; // 8 KiB
+  ssize_t bytesRead;
+  while ((bytesRead = file.Read(buf, sizeof(buf))) != 0) {
+    if (bytesRead == wxInvalidOffset) {
+      throw wxString::Format(
+        _("Failed to read '%s': %s"), filePath, strerror(file.GetLastError()));
+    }
+    content.insert(content.end(), &buf[0], &buf[bytesRead]);
+  }
+  return content;
+}
+
+static wxString load_file_text_with_encoding_detection(
+  const wxString &filePath) {
+  std::vector<char> content = load_file_bytes(filePath);
+  wxBOM detectedBOM = wxConvAuto::DetectBOM(&content[0], content.size());
+  if (detectedBOM != wxBOM_None && detectedBOM != wxBOM_Unknown) {
+    // We know what encoding was used for that file.
+    // wxConvAuto will use BOM to determine encoding and to decode file content.
+    // Note: newer GO versions export yaml files with UTF-8-BOM.
+    return wxString(&content[0], wxConvAuto(), content.size());
+  } else {
+    // Use encoding that was used in older GO versions (system default)
+    return wxString(&content[0], *wxConvCurrent, content.size());
+  }
+}
+
 void GOOrganController::LoadCombination(const wxString &file) {
   wxString errMsg;
   const wxFileName fileName(file);
@@ -694,7 +736,11 @@ void GOOrganController::LoadCombination(const wxString &file) {
     const wxString fileExt = fileName.GetExt();
 
     if (fileExt == WX_YAML) {
-      YAML::Node cmbNode = YAML::LoadFile(file.c_str().AsChar());
+      wxString fileContent = load_file_text_with_encoding_detection(file);
+      // Note: wxScopedCharBuffer may point to internals of wxString above
+      // fileContent must not be destructed while fileContentInUtf8 is in use
+      wxScopedCharBuffer fileContentInUtf8 = fileContent.utf8_str();
+      YAML::Node cmbNode = YAML::Load(fileContentInUtf8.data());
       YAML::Node cmbInfoNode = cmbNode[INFO];
       const wxString contentType = cmbInfoNode[CONTENT_TYPE].as<wxString>();
 
@@ -825,6 +871,7 @@ bool GOOrganController::Export(const wxString &cmb) {
 
   GOEventDistributor::Save(cfg);
   GetDialogSizeSet().Save(cfg);
+  m_VirtualCouplers.Save(cfg);
 
   wxString tmp_name = cmb + wxT(".new");
 
@@ -971,6 +1018,8 @@ void GOOrganController::Abort() {
   m_MidiRecorder->StopRecording();
   m_AudioRecorder->StopRecording();
   m_AudioRecorder->SetAudioRecorder(NULL);
+  if (p_OnStateButton)
+    p_OnStateButton->AbortPlaybackExt();
   GOOrganModel::SetMidi(nullptr, nullptr);
   m_midi = NULL;
 }
@@ -1002,6 +1051,13 @@ void GOOrganController::PreparePlayback(
 
   GOEventDistributor::StartPlayback();
   GOEventDistributor::PrepareRecording();
+
+  // Light the OnState button
+  if (p_OnStateButton) {
+    p_OnStateButton->PreparePlaybackExt(engine);
+    p_OnStateButton->StartPlaybackExt();
+    p_OnStateButton->PrepareRecordingExt();
+  }
 }
 
 void GOOrganController::PrepareRecording() {

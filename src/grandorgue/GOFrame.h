@@ -17,10 +17,11 @@
 #include "midi/GOMidiCallback.h"
 #include "midi/GOMidiListener.h"
 #include "modification/GOModificationListener.h"
+#include "size/GOResizable.h"
 #include "threading/GOMutex.h"
+#include "updater/GOUpdateChecker.h"
 
 #include "GOEvent.h"
-#include "GOResizable.h"
 
 class GOApp;
 class GOAudioGauge;
@@ -70,6 +71,8 @@ private:
   bool m_MidiMonitor;
   bool m_isMeterReady;
   bool m_IsGuiOnly;
+  std::unique_ptr<GOThread> m_UpdateCheckerThread;
+  GOUpdateChecker::Result m_StartupUpdateCheckerResult;
 
   // to avoid event processing when the settings dialog is open
   bool m_InSettings;
@@ -120,6 +123,7 @@ private:
 
   void OnOrganSettings(wxCommandEvent &event);
   void OnMidiList(wxCommandEvent &event);
+  void OnStops(wxCommandEvent &event);
 
   void OnAudioPanic(wxCommandEvent &event);
   void OnAudioMemset(wxCommandEvent &event);
@@ -161,6 +165,11 @@ private:
   void OnSetTitle(wxCommandEvent &event);
   void OnMsgBox(wxMsgBoxEvent &event);
   void OnRenameFile(wxRenameFileEvent &event);
+
+  void OnUpdateCheckingRequested(wxCommandEvent &event);
+  void OnUpdateCheckingCompletion(GOUpdateChecker::CompletionEvent &event);
+  void OnNewReleaseInfoRequested(wxCommandEvent &event);
+  void OnNewReleaseDownload(wxCommandEvent &event);
 
   bool CloseOrgan(bool isForce = false);
   bool CloseProgram(bool isForce = false);

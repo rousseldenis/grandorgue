@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -242,14 +242,14 @@ void GOManual::LoadDivisionals(GOConfigReader &cfg) {
   m_divisionals.resize(0);
   for (unsigned i = 0; i < nDivisionals; i++) {
     m_divisionals.push_back(
-      new GODivisionalButtonControl(r_OrganModel, m_manual_number, false));
+      new GODivisionalButtonControl(r_OrganModel, m_manual_number, i));
 
     buffer.Printf(wxT("Divisional%03d"), i + 1);
     buffer.Printf(
       wxT("Divisional%03d"),
       cfg.ReadInteger(ODFSetting, m_group, buffer, 1, 999));
     cfg.MarkGroupInUse(buffer);
-    m_divisionals[i]->Load(cfg, buffer, i);
+    m_divisionals[i]->Load(cfg, buffer);
   }
 }
 
@@ -271,9 +271,17 @@ void GOManual::SetOutput(unsigned note, unsigned velocity) {
     m_division.SetKey(midi_note, velocity);
 }
 
-void GOManual::SetKey(
-  unsigned note, unsigned velocity, GOCoupler *prev, unsigned couplerID) {
-  if (note < 0 || note >= m_Velocity.size())
+void GOManual::PropagateKeyToCouplers(unsigned note) {
+  if (note < m_Velocity.size()) {
+    auto &noteVelocities = m_Velocities[note];
+
+    for (auto pCoupler : m_couplers)
+      pCoupler->SetKey(note, noteVelocities, m_InputCouplers);
+  }
+}
+
+void GOManual::SetKey(unsigned note, unsigned velocity, unsigned couplerID) {
+  if (note >= m_Velocity.size())
     return;
 
   if (m_Velocities[note][couplerID] == velocity)
@@ -289,9 +297,7 @@ void GOManual::SetKey(
       m_RemoteVelocity[note] = m_Velocities[note][i];
   }
 
-  for (unsigned i = 0; i < m_couplers.size(); i++)
-    m_couplers[i]->SetKey(note, m_Velocities[note], m_InputCouplers);
-
+  PropagateKeyToCouplers(note);
   SetOutput(note, m_UnisonOff > 0 ? m_RemoteVelocity[note] : m_Velocity[note]);
 
   if (
@@ -315,7 +321,6 @@ void GOManual::Set(unsigned note, unsigned velocity) {
     note - m_first_accessible_key_midi_note_nb
       + m_first_accessible_logical_key_nb - 1,
     velocity,
-    NULL,
     0);
 }
 
@@ -382,8 +387,6 @@ int GOManual::FindCouplerByName(const wxString &name) const {
 }
 
 void GOManual::AddCoupler(GOCoupler *coupler) { m_couplers.push_back(coupler); }
-
-unsigned GOManual::GetDivisionalCount() { return m_divisionals.size(); }
 
 GODivisionalButtonControl *GOManual::GetDivisional(unsigned index) {
   assert(index < m_divisionals.size());

@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -14,6 +14,7 @@
 
 #include "combinations/control/GOCombinationButtonSet.h"
 #include "combinations/model/GOCombinationDefinition.h"
+#include "control/GOControl.h"
 #include "midi/GOMidiConfigurator.h"
 #include "midi/GOMidiReceiver.h"
 #include "midi/GOMidiSender.h"
@@ -32,7 +33,8 @@ class GOSwitch;
 class GOTremulant;
 class GOOrganModel;
 
-class GOManual : private GOEventHandler,
+class GOManual : public GOControl,
+                 private GOEventHandler,
                  private GOCombinationButtonSet,
                  private GOSaveableObject,
                  private GOSoundStateHandler,
@@ -116,8 +118,9 @@ public:
   void Load(GOConfigReader &cfg, const wxString &group, int manualNumber);
   void LoadDivisionals(GOConfigReader &cfg);
   unsigned RegisterCoupler(GOCoupler *coupler);
-  void SetKey(
-    unsigned note, unsigned velocity, GOCoupler *prev, unsigned couplerID);
+  // send the key state to all outgoing couplers
+  void PropagateKeyToCouplers(unsigned note);
+  void SetKey(unsigned note, unsigned velocity, unsigned couplerID);
   void Set(unsigned note, unsigned velocity);
   void SetUnisonOff(bool on);
   void Update();
@@ -152,7 +155,7 @@ public:
    */
   int FindCouplerByName(const wxString &name) const;
   void AddCoupler(GOCoupler *coupler);
-  unsigned GetDivisionalCount();
+  unsigned GetDivisionalCount() const { return m_divisionals.size(); }
   GODivisionalButtonControl *GetDivisional(unsigned index);
   void AddDivisional(GODivisionalButtonControl *divisional);
   unsigned GetTremulantCount() const { return m_tremulant_ids.size(); }

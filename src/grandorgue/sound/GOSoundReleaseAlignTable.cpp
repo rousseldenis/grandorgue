@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -11,7 +11,8 @@
 
 #include "loader/cache/GOCache.h"
 #include "loader/cache/GOCacheWriter.h"
-#include "sound/GOSoundAudioSection.h"
+
+#include "GOSoundAudioSection.h"
 
 #ifndef NDEBUG
 #ifdef PALIGN_DEBUG
@@ -50,7 +51,7 @@ bool GOSoundReleaseAlignTable::Save(GOCacheWriter &cache) {
 }
 
 void GOSoundReleaseAlignTable::ComputeTable(
-  const GOAudioSection &release,
+  const GOSoundAudioSection &release,
   int phase_align_max_amplitude,
   int phase_align_max_derivative,
   unsigned int sample_rate,
@@ -172,12 +173,8 @@ void GOSoundReleaseAlignTable::ComputeTable(
       }
 }
 
-void GOSoundReleaseAlignTable::SetupRelease(
-  audio_section_stream &release_sampler,
-  const audio_section_stream &old_sampler) const {
-  int history[BLOCK_HISTORY][MAX_OUTPUT_CHANNELS];
-  GOAudioSection::GetHistory(&old_sampler, history);
-
+unsigned GOSoundReleaseAlignTable::GetPositionFor(
+  int history[BLOCK_HISTORY][MAX_OUTPUT_CHANNELS]) const {
   /* Get combined release f's and v's */
   int f_mod = 0;
   int v_mod = 0;
@@ -213,14 +210,5 @@ void GOSoundReleaseAlignTable::SetupRelease(
     : (
       (ampIndex >= PHASE_ALIGN_AMPLITUDES) ? PHASE_ALIGN_AMPLITUDES - 1
                                            : ampIndex);
-  release_sampler.position_index = m_PositionEntries[derivIndex][ampIndex];
-
-#ifndef NDEBUG
-#ifdef PALIGN_DEBUG
-  printf("setup release using alignment:\n");
-  printf("  pos:    %d\n", release_sampler.position_index);
-  printf("  derIdx: %d\n", derivIndex);
-  printf("  ampIdx: %d\n", ampIndex);
-#endif
-#endif
+  return m_PositionEntries[derivIndex][ampIndex];
 }

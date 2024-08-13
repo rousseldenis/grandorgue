@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -144,6 +144,8 @@ enum {
   ID_SETTER_TRANSPOSE_UP,
 
   ID_SETTER_ON,
+  ID_SETTER_AUDIO_PANIC,
+  ID_SETTER_FILE_EXIT
 };
 
 const wxString GOSetter::KEY_REFRESH_FILES = wxT("RefreshFiles");
@@ -153,6 +155,8 @@ const wxString GOSetter::KEY_NEXT_FILE = wxT("NextFile");
 const wxString GOSetter::KEY_LOAD_FILE = wxT("LoadFile");
 const wxString GOSetter::KEY_SAVE_FILE = wxT("SaveFile");
 const wxString GOSetter::KEY_SAVE_SETTINGS = wxT("Save");
+
+const wxString GOSetter::KEY_ON_STATE = wxT("OnState");
 
 const wxString GOSetter::GROUP_REFRESH_FILES = wxT("SetterRefreshFiles");
 const wxString GOSetter::GROUP_PREV_FILE = wxT("SetterPrevFile");
@@ -263,7 +267,7 @@ const struct GOElementCreator::ButtonDefinitionEntry GOSetter::m_element_types[]
     {wxT("TransposeUp"), ID_SETTER_TRANSPOSE_UP, true, true, false},
 
     {KEY_SAVE_SETTINGS, ID_SETTER_SAVE_SETTINGS, true, true, false},
-    {wxT("OnState"), ID_SETTER_ON, false, true, false},
+    {KEY_ON_STATE, ID_SETTER_ON, false, true, false},
 
     {wxT("CrescendoA"), ID_SETTER_CRESCENDO_A, true, true, false},
     {wxT("CrescendoB"), ID_SETTER_CRESCENDO_B, true, true, false},
@@ -277,8 +281,9 @@ const struct GOElementCreator::ButtonDefinitionEntry GOSetter::m_element_types[]
      true,
      false,
      false},
-    {wxT(""), -1, false, false, false},
-};
+    {wxT("PanicButton"), ID_SETTER_AUDIO_PANIC, true, true, true},
+    {wxT("ExitGO"), ID_SETTER_FILE_EXIT, true, true, true},
+    {wxT(""), -1, false, false, false}};
 
 const struct GOElementCreator::ButtonDefinitionEntry *GOSetter::
   GetButtonDefinitionList() {
@@ -328,6 +333,8 @@ GOSetter::GOSetter(GOOrganController *organController)
   m_buttons[ID_SETTER_TEMPERAMENT_NEXT]->SetPreconfigIndex(22);
   m_buttons[ID_SETTER_TRANSPOSE_DOWN]->SetPreconfigIndex(23);
   m_buttons[ID_SETTER_TRANSPOSE_UP]->SetPreconfigIndex(24);
+  m_buttons[ID_SETTER_AUDIO_PANIC]->SetPreconfigIndex(25);
+  m_buttons[ID_SETTER_FILE_EXIT]->SetPreconfigIndex(26);
 
   m_buttons[ID_SETTER_PREV]->SetShortcutKey(37);
   m_buttons[ID_SETTER_NEXT]->SetShortcutKey(39);
@@ -447,6 +454,10 @@ void GOSetter::Load(GOConfigReader &cfg) {
 
   m_buttons[ID_SETTER_ON]->Init(cfg, wxT("SetterOn"), _("ON"));
   m_buttons[ID_SETTER_ON]->Display(true);
+
+  m_buttons[ID_SETTER_AUDIO_PANIC]->Init(cfg, wxT("AudioPanic"), _("Panic"));
+  m_buttons[ID_SETTER_FILE_EXIT]->Init(
+    cfg, wxT("ExitGO"), _("Exit GrandOrgue"));
 
   m_swell.Init(cfg, wxT("SetterSwell"), _("Crescendo"), 0);
 
@@ -919,6 +930,14 @@ void GOSetter::ButtonStateChanged(int id, bool newState) {
       value--;
     SetTranspose(value);
   } break;
+  case ID_SETTER_AUDIO_PANIC: {
+    wxCommandEvent event(wxEVT_MENU, ID_AUDIO_PANIC);
+    wxTheApp->GetTopWindow()->GetEventHandler()->AddPendingEvent(event);
+  } break;
+  case ID_SETTER_FILE_EXIT: {
+    wxCommandEvent event(wxEVT_MENU, ID_FILE_EXIT);
+    wxTheApp->GetTopWindow()->GetEventHandler()->AddPendingEvent(event);
+  } break;
   }
 }
 
@@ -1013,71 +1032,19 @@ void GOSetter::PushGeneral(
 }
 
 void GOSetter::PushDivisional(
-  std::unordered_set<GODivisionalCombination *> &usedCmbs,
   GODivisionalCombination &cmb,
+  unsigned startManual,
+  unsigned cmbManual,
   GOButtonControl *pButtonToLight) {
-  // protection against infinite recursion
-  if (usedCmbs.insert(&cmb).second) {
+  if (cmbManual == startManual || !m_state.m_IsActive) {
     GOCombination::ExtraElementsSet elementSet;
     const GOCombination::ExtraElementsSet *pExtraSet
       = GetCrescendoAddSet(elementSet);
 
     NotifyCmbPushed(cmb.Push(m_state, pExtraSet));
-    /* only use divisional couples, if not in setter mode */
-    if (!m_state.m_IsActive) {
-      unsigned cmbManualNumber = cmb.GetManualNumber();
-      unsigned divisionalNumber = cmb.GetDivisionalNumber();
-
-      for (unsigned k = 0; k < m_OrganController->GetDivisionalCouplerCount();
-           k++) {
-        GODivisionalCoupler *coupler
-          = m_OrganController->GetDivisionalCoupler(k);
-        if (!coupler->IsEngaged())
-          continue;
-
-        for (unsigned i = 0; i < coupler->GetNumberOfManuals(); i++) {
-          if (coupler->GetManual(i) != cmbManualNumber)
-            continue;
-
-          for (unsigned int j = i + 1; j < coupler->GetNumberOfManuals(); j++) {
-            GODivisionalButtonControl *coupledDivisional
-              = m_OrganController->GetManual(coupler->GetManual(j))
-                  ->GetDivisional(divisionalNumber);
-
-            PushDivisional(
-              usedCmbs, coupledDivisional->GetCombination(), coupledDivisional);
-          }
-
-          if (coupler->IsBidirectional())
-            for (unsigned j = 0; j < coupler->GetNumberOfManuals(); j++) {
-              unsigned coupledManualIndex = coupler->GetManual(j);
-
-              if (coupledManualIndex == cmbManualNumber)
-                break;
-
-              GODivisionalButtonControl *coupledDivisional
-                = m_OrganController->GetManual(coupledManualIndex)
-                    ->GetDivisional(divisionalNumber);
-
-              PushDivisional(
-                usedCmbs,
-                coupledDivisional->GetCombination(),
-                coupledDivisional);
-            }
-          break;
-        }
-      }
-    }
     if (!pExtraSet)
-      UpdateAllSetsButtonsLight(pButtonToLight, cmb.GetManualNumber());
+      UpdateAllSetsButtonsLight(pButtonToLight, cmbManual);
   }
-}
-
-void GOSetter::PushDivisional(
-  GODivisionalCombination &cmb, GOButtonControl *pButtonToLight) {
-  std::unordered_set<GODivisionalCombination *> usedCmbs;
-
-  PushDivisional(usedCmbs, cmb, pButtonToLight);
 }
 
 void GOSetter::Next() { SetPosition(m_pos + 1); }
@@ -1191,7 +1158,7 @@ void GOSetter::Crescendo(int newpos, bool force) {
   m_CrescendoDisplay.SetContent(buffer);
 }
 
-void GOSetter::ControlChanged(void *control) {
+void GOSetter::ControlChanged(GOControl *control) {
   if (control == &m_swell)
     Crescendo(m_swell.GetValue() * CRESCENDO_STEPS / 128);
 }
@@ -1213,7 +1180,8 @@ void GOSetter::SetTranspose(int value) {
 }
 
 void GOSetter::UpdateModified(bool modified) {
-  m_buttons[ID_SETTER_SAVE_SETTINGS]->Display(modified);
+  if (m_buttons.size())
+    m_buttons[ID_SETTER_SAVE_SETTINGS]->Display(modified);
 }
 
 GOEnclosure *GOSetter::GetEnclosure(const wxString &name, bool is_panel) {

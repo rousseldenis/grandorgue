@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -16,6 +16,7 @@
 #include "midi/GOMidiShortcutReceiver.h"
 #include "sound/GOSoundStateHandler.h"
 
+#include "GOControl.h"
 #include "GOEventHandler.h"
 #include "GOSaveableObject.h"
 
@@ -25,9 +26,10 @@ class GOMidiEvent;
 class GOMidiMap;
 class GOOrganModel;
 
-class GOButtonControl : private GOEventHandler,
+class GOButtonControl : public GOControl,
+                        private GOEventHandler,
                         public GOSaveableObject,
-                        protected GOSoundStateHandler,
+                        public GOSoundStateHandler,
                         public GOMidiConfigurator {
 private:
   GOMidiMap &r_MidiMap;

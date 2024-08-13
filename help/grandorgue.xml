@@ -3,7 +3,7 @@
 <book lang="en">
 <!--
 Copyright 2006 Milan Digital Audio LLC
-Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
 License GPL-2.0 or later (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
 -->
   <title>GrandOrgue Help</title>
@@ -500,13 +500,16 @@ sample set closes. Note that this will also unload the sample set and
 free the RAM it required.
 </para>
         </sect3>
-        <sect3>
+        <sect3 id="fileExit">
           <title>Exit</title>
           <indexterm>
             <primary>Exit</primary>
           </indexterm>
           <para>
 Closes and exits the GrandOrgue app.
+</para>
+        <para>
+          Exit can also be fired by a MIDI message, see Audio/Midi menu &rarr; <link linkend="midiobjects">MIDI Objects</link> (look for type Button, element Exit).
 </para>
         </sect3>
       </sect2>
@@ -563,6 +566,27 @@ Opens a bunch of menus and sub menus allowing to select a new tuning temperament
           <para>The <emphasis role="strong">Configure</emphasis> button opens the <link linkend="midieventeditor">MIDI event editor</link> dialog for this element.</para>
           <para>Double-clicking on the element in the list opens the MIDI event editor as well.</para>
         </sect3>
+        <sect3 id="accessibility-stops">
+          <title>Stops</title>
+          <indexterm><primary>Stops</primary></indexterm>
+          <figure>
+            <title>Stops</title>
+            <mediaobject>
+              <imageobject>
+                <imagedata fileref="images/accessibility_stops.png" />
+              </imageobject>
+            </mediaobject>
+          </figure>
+          <para>
+	    Opens a window displaying all stops and switches. Unlike GUI Panels,
+	    it uses standard checkboxes instead of bitmap images, so it can be
+	    used with a screen reader software.
+	  </para>
+          <para>
+	    Checking or unchecking a stop or a switch causes engaging or 
+	    disengaging the object in the organ
+          </para>
+        </sect3>
         <sect3>
           <title>Sound Output State</title>
           <mediaobject><imageobject><imagedata fileref="images/sound_output_state.png"/></imageobject></mediaobject>
@@ -583,6 +607,9 @@ sound and turning off all notes. It may also be quickly accessed on
 the toolbar or via the <emphasis>Escape</emphasis> key on the computer keyboard. This should be generally
 unnecessary, although it may be useful if you need to quickly stop the
 sound output, or if the sound is breaking up due to CPU overload.
+</para>
+          <para>
+Panic button can also be fired by a MIDI message, see Audio/Midi menu &rarr; <link linkend="midiobjects">MIDI Objects</link> (look for type Button, element Panic).
 </para>
         </sect3>
         <sect3 id="memoryset">
@@ -652,6 +679,36 @@ program will jump directly to the appropriate topic.
             <primary>About</primary>
           </indexterm>
           <para>Displays the splash screen.</para>
+        </sect3>
+        <sect3>
+          <title>Check for updates</title>
+          <indexterm>
+            <primary>updates</primary>
+          </indexterm>
+          <para>
+            Check if a newer version of GrandOrgue is available. If there is one,
+            GrandOrgue will show you <link linkend="update-changelog">what changed</link> in the new version.
+          </para>
+        </sect3>
+      </sect2>
+      <sect2 id="update-available">
+        <title>Update available!</title>
+        <para>That menu appears only if update checking at startup is enabled and a new update is available.</para>
+        <indexterm>
+          <primary>updates</primary>
+        </indexterm>
+        <sect3>
+          <title>Show changelog</title>
+          <para>Opens a window that shows what changed between the installed version and the newest one.</para>
+          <mediaobject id="update-changelog">
+            <imageobject>
+              <imagedata fileref="images/update_changelog.png"/>
+            </imageobject>
+          </mediaobject>
+        </sect3>
+        <sect3>
+          <title>Download</title>
+          <para>Opens the GrandOrgue releases page in the browser.</para>
         </sect3>
       </sect2>
     </sect1>
@@ -763,7 +820,7 @@ the far right will turn red if the polyphony limit has been reached,
 and will stay red until the polyphony is adjusted.
 </para>
       </sect2>
-      <sect2>
+      <sect2 id="panicButton">
         <title>Panic Button</title>
         <indexterm>
           <primary>Panic Button</primary>
@@ -778,6 +835,9 @@ sound and turning off all notes. It may also be quickly accessed on
 the toolbar or via the <emphasis>Escape</emphasis> key. This should be generally
 unnecessary, although it may be useful if you need to quickly stop the
 sound output, or if the sound is breaking up due to CPU overload.
+        </para>
+        <para>
+Panic button can also be fired by a MIDI message, see Audio/Midi menu &rarr; <link linkend="midiobjects">MIDI Objects</link> (look for type Button, element Panic).
 </para>
       </sect2>
     </sect1>
@@ -4662,6 +4722,21 @@ role="strong">STOP</emphasis> button is depressed.
           </sect4>
         </sect3>
         <sect3>
+          <title>Matching</title>
+          <indexterm>
+            <primary>Audio device matching rules</primary>
+          </indexterm>
+          <para>
+            This feature is available when a <emphasis role="bold">Device:
+            </emphasis> node is selected in the tree.
+          </para>  
+          <para>
+            This button allows to define matching rules for devices whose name
+            may be altered across reboots. See 
+            <link linkend="devicematching">Device Matching</link> for details
+          </para>
+        </sect3>
+        <sect3>
           <title>Revert to default</title>
           <indexterm>
             <primary>Revert audio configuration</primary>
@@ -4709,6 +4784,84 @@ role="strong">STOP</emphasis> button is depressed.
           <para>This feature is available when a <emphasis role="bold">Channel n</emphasis> node is selected in the tree. The <emphasis>Delete</emphasis> button is active only if there are at least two channels defined for the device. Push the <emphasis>Delete</emphasis> button. The selected channel is deleted with its configuration.</para>
         </sect3>
       </sect2>
+    </sect1>
+    <sect1 id="devicematching">
+        <title>Device Matching</title>
+        <indexterm>
+          <primary>Device Matching</primary>
+        </indexterm>
+        <figure>
+          <title>Device matching properties</title>
+          <mediaobject>
+            <imageobject>
+              <imagedata fileref="images/device_matching_editor.png"/>
+            </imageobject>
+          </mediaobject>
+        </figure>
+        <para>
+          This dialog allows to define matching rules for audio/midi device
+          names  
+        </para>
+        <variablelist>
+          <varlistentry>
+            <term>Physical device name</term>
+            <listitem>
+              <para>
+                This is the name of a Audio/MIDI device as it is reported by
+                the Sound/MIDI port. A user cannot alter it, and this name may
+                be not persistent across reboots
+              </para>
+            </listitem>
+          </varlistentry>
+          <varlistentry>
+            <term>Logical device name</term>
+            <listitem>
+              <para>
+                This is the name of Audio/MIDI device as it is presented to the
+                user. By default it is the same name as the physical name, but
+                the user is capable to set some another name
+              </para>
+              <note>
+                <simpara>The logical device name must be unique</simpara>
+              </note>
+              <note>
+                <simpara>
+                  If the user alters the logical name, a regex pattern must
+                  be provided so that GrandOrgue can find this device by its
+                  physical name.
+                </simpara>
+                <simpara>
+                  Specify the most common part among the different physical 
+                  names that the device can have across reboots
+                </simpara>
+              </note>
+            </listitem>
+          </varlistentry>
+          <varlistentry>
+            <term>Physical name regex pattern</term>
+            <listitem>
+              <para>
+                This is a pattern that allows GrandOrgue to find this Audio/MIDI
+                device with it's physical device name.
+              </para>
+              <para>
+                The simplest pattern would be the most common part of the
+                physical device name that is always present and kept across
+                reboots. More advanced regular expressions are also supported, 
+                look at
+                <ulink
+                  url="https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions"
+                >
+                  https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions
+                </ulink> for the full syntax.
+              </para>
+              <para>
+                By default the regex pattern is empty so the device can be
+                found only if it's physical name is equal to it's logical name
+              </para>
+            </listitem>
+          </varlistentry>
+        </variablelist>
     </sect1>
     <sect1 id="mididevicestab">
       <title>MIDI Devices tab</title>
@@ -4798,77 +4951,9 @@ the same channel.
             </para>
             <para>
               The <emphasis>Matching</emphasis> button allows to change the way
-              Grandorgue recognizes the MIDI device
+              Grandorgue recognizes the MIDI device. See 
+              <link linkend="devicematching">Device Matching</link> for details
             </para>
-            <indexterm>
-              <primary>MIDI Matching</primary>
-            </indexterm>
-            <figure>
-              <title>MIDI device matching properties</title>
-              <mediaobject>
-                <imageobject>
-                  <imagedata fileref="images/midi_matching_editor.png"/>
-                </imageobject>
-              </mediaobject>
-            </figure>
-            <variablelist>
-              <varlistentry>
-                <term>Physical device name</term>
-                <listitem>
-                  <para>
-                  This is the name of MIDI device as it is reported by a MIDI port.
-                  A user can not alter it, but this name may be not persistent
-                  across reboots
-                  </para>
-                </listitem>
-              </varlistentry>
-              <varlistentry>
-                <term>Logical device name</term>
-                <listitem>
-                  <para>
-                    This is the name of MIDI device as it is presented to the user.
-                    By default it is the same name as the physical name, but
-                    the user is capable to set some another name
-                  </para>
-                  <note>
-                    <simpara>The logical device name must be unique</simpara>
-                  </note>
-                  <note>
-                    <simpara>
-                      If the user alters the logical name, a regex pattern must
-                      be provided so that GrandOrgue can find this device by its
-                      physical name.
-                    </simpara>
-                    <simpara>
-                      Specify there the most common part among the physical names
-                      of the device appear across reboots
-                    </simpara>
-                  </note>
-                </listitem>
-              </varlistentry>
-              <varlistentry>
-                <term>Physical name regex pattern</term>
-                <listitem>
-                  <para>
-                    This is a pattern that allows GrandOrgue to find this MIDI
-                    device with it's physical device name.
-                  </para>
-                  <para>
-                    The simplest pattern would be the most common part of the
-                    physical device name that is present always and it kept
-                    across reboots. More advanced regular expressions are also
-                    supported, look at
-                    <ulink url="https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions">
-                      the full syntax
-                    </ulink>
-                  </para>
-                  <para>
-                    By default the regex pattern is empty so the device can be
-                    found only if it's physical name is equal to it's logical name
-                  </para>
-                </listitem>
-              </varlistentry>
-            </variablelist>
           </listitem>
         </varlistentry>
         <varlistentry>
@@ -5389,6 +5474,21 @@ Within  windchests, the ranks are ordered as found in the definition file.
 	</para>
       </sect2>
       <sect2>
+        <title>Tone balance</title>
+        <para>
+          This setting adjusts the bass/treble harmonics balance of the pipes.
+          The value is a converted to a cutoff frequency for a filter where a negative
+          number means less high frequencies and a positive number means less
+          low frequencies. Allowed range is {-100, +100}. A tone balance value
+          which is not zero on a child level will override a value set at any
+          parent level.
+        </para>
+        <para><emphasis>Note</emphasis>: A 0 value means that this setting
+          value has no effect on the effective tone balance. Using this setting
+          on the individual pipe level usually gives the best results.
+        </para>
+      </sect2>
+      <sect2>
         <title>Audio Group</title>
         <para>This dropdown selects which audio group the sound from the selected element is routed to</para>
         <para><emphasis>Note</emphasis>: A blank value means that this setting value is fetched from the upper level. If the effective audio group is still blank, the pipe is routed to the default audio group.</para>
@@ -5731,6 +5831,10 @@ keyboard, etc.
             <row valign="top">
               <entry><emphasis role="strong">MEL</emphasis></entry>
               <entry>"Melody" coupler. The upper note in any chord played on the "master" keyboard is "pulled" on the target key/pedal board.</entry>
+            </row>
+            <row valign="top">
+              <entry><emphasis role="strong">Couple Through</emphasis></entry>
+              <entry>When it is engaged, any source manual key pressing is transfering to all engaged target manual further couplers for all couplers in this row</entry>
             </row>
           </tbody>
         </tgroup>
@@ -6148,6 +6252,13 @@ controls.
               </simpara>
             </listitem>
           </varlistentry>
+          <varlistentry>
+            <term>Hidden buttons</term>
+            <listitem>
+              <simpara>There are two hidden buttons, <link linkend="panicButton">Panic</link> and <link linkend="fileExit">Exit GO</link>, that serve as MIDI receivers only, not visible in this panel for mouse interaction. To configure them, go to Audio/Midi menu &rarr; <link linkend="midiobjects">MIDI Objects</link> and look for type Button, elements Panic resp. Exit to assign MIDI events that will fire the two functions. 
+              </simpara>
+            </listitem>
+          </varlistentry>
        </variablelist>
     </sect1>
     <sect1 id="couplerManuals">
@@ -6255,6 +6366,13 @@ the next time the sample set is loaded. Use the <link linkend="save">File &gt;
 closed with changed metronome settings.
           </simpara>
         </note>
+      </sect2>
+    </sect1>
+    <sect1 id="update-checking">
+      <title>Updates</title>
+      <sect2>
+        <title>Check for updates at startup</title>
+        <para>Check the checkbox here if you would like GrandOrgue to notify you when a new version of GrandOrgue is available. If there is one, GrandOrgue will create a new menu <link linkend="update-available">Update available!</link>.</para>
       </sect2>
     </sect1>
     <sect1 id="masterControls">
@@ -6529,7 +6647,7 @@ or an integer number between 1 and 50.
       </para>
       <para>
 A panel size can be one of the following values: SMALL, MEDIUM, MEDIUM LARGE, LARGE
-or an integer number between 100 and 4000.
+or an integer number between 100 and 32000.
       </para>
       <para>
 The following image formats are supported: bmp, gif, jpg, ico, png
@@ -7284,7 +7402,7 @@ number of cents.
           </listitem>
         </varlistentry>
         <varlistentry>
-          <term>PitchTuning</term>
+          <term>PitchCorrection</term>
           <listitem>
             <para>
 (float -1800 - 1800, default: 0) Correction factor in cent for the pitch
@@ -7300,6 +7418,28 @@ temperaments.
 (integer 0 - 10000, default: 0) Delay introduced by the tracker applied to
 the whole organ.
      </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>Percussive</term>
+          <listitem>
+            <para>
+	      (boolean, default false) If true, the samples are played as is
+	      (without any loop/release handling).
+	    </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>HasIndependentRelease</term>
+          <listitem>
+            <para>
+	      (boolean, default false). If true, releases are played
+	      independently of the attacks.
+	    </para>
+            <para>
+	      If HasIndependentRelease is true then Percussive must also be set
+	      to true.
+	    </para>
           </listitem>
         </varlistentry>
       </variablelist>
@@ -9655,7 +9795,7 @@ settings depends on the function.
           <term>DefaultToEngaged</term>
           <listitem>
             <para>
-(boolean, required) State of the button after loading.
+(boolean, required if Function is Input or not defined, else ignored) State of the button after loading.
      </para>
           </listitem>
         </varlistentry>
@@ -9909,9 +10049,22 @@ on which the pipes of the are placed.
           <term>Percussive</term>
           <listitem>
             <para>
-(boolean, required) If false, the samples are played as is (without
-any loop/release handling)
-     </para>
+	      (boolean, default inherited from the Windchest section) If true,
+	      the samples are played as is (without any loop/release handling).
+	    </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>HasIndependentRelease</term>
+          <listitem>
+            <para>
+	      (boolean, default inherited from the Windchest section). If true,
+	      releases are played independently of the attacks.
+	    </para>
+            <para>
+	      If HasIndependentRelease is true then Percussive must also be set
+	      to true.
+	    </para>
           </listitem>
         </varlistentry>
         <varlistentry>
@@ -9951,12 +10104,36 @@ attributes are:
       </para>
       <variablelist>
         <varlistentry>
+          <term>Pipe999</term>
+          <listitem>
+            <para>
+(string, required) Relative path to the sample WAV file of the first
+attack. It may be listed as REF:aa:bb:cc too. In that case, it means
+that this pipe is borrowed from manual aa, first rank of stop bb, the pipe cc.
+It may contain DUMMY, which defines a non-sounding placeholder.
+     </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
           <term>Pipe999Percussive</term>
           <listitem>
             <para>
-(boolean, default: rank percussive setting) If false, the samples are
-played as is (without any loop/release handling)
-     </para>
+	      (boolean, default: rank Percussive setting) If true, the samples
+	      are played as is (without any loop/release handling)
+	    </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>Pipe999HasIndependentRelease</term>
+          <listitem>
+            <para>
+	      (boolean, default: rank HasIndependentRelease setting). If true,
+	      releases are played independently of attacks in this pipe.
+	    </para>
+            <para>
+	      If HasIndependentRelease is true then Pipe999Percussive must be
+	      also true and Pipe999ReleaseCount must be greater than 0.
+	    </para>
           </listitem>
         </varlistentry>
         <varlistentry>
@@ -9964,7 +10141,7 @@ played as is (without any loop/release handling)
           <listitem>
             <para>
 (float 0 - 1000, default: 100) Linear amplitude scale factor applied to
-the pipe (in addition to the organ/rank factor). 100 means no change.
+the pipe (in addition to the organ/windchest/rank factor). 100 means no change.
      </para>
           </listitem>
         </varlistentry>
@@ -9973,7 +10150,7 @@ the pipe (in addition to the organ/rank factor). 100 means no change.
           <listitem>
             <para>
 (float -120 - 40, default: 0) Amplitude scale factor in dB applied to
-the pipe (in addition to the organ/rank factor). 0 means no change.
+the pipe (in addition to the organ/windchest/rank factor). 0 means no change.
      </para>
           </listitem>
         </varlistentry>
@@ -9982,7 +10159,7 @@ the pipe (in addition to the organ/rank factor). 0 means no change.
           <listitem>
             <para>
 (float -1800 - 1800, default: 0) Retune this pipe the specified
-number of cents (in addition to the organ/rank factor).
+number of cents (in addition to the organ/windchest/rank factor).
      </para>
           </listitem>
         </varlistentry>
@@ -9992,17 +10169,6 @@ number of cents (in addition to the organ/rank factor).
             <para>
 (integer 0 - 10000, default: 0) Delay introduced by the tracker for
 that pipe.
-     </para>
-          </listitem>
-        </varlistentry>
-        <varlistentry>
-          <term>Pipe999</term>
-          <listitem>
-            <para>
-(string, required) Relative path to the sample WAV file of the first
-attack. It may be listed as REF:aa:bb:cc too. In that case, it means
-that this pipe is borrowed from manual aa, first rank of stop bb, the pipe cc.
-It may contain DUMMY, which defines a non-sounding placeholder.
      </para>
           </listitem>
         </varlistentry>
@@ -10674,6 +10840,80 @@ influences this windchest.
 (integer 1 - tremulant count, required) Number of a tremulant, which
 influences this windchest.
      </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>AmplitudeLevel</term>
+          <listitem>
+            <para>
+	      (float 0 - 1000, default: 100) Linear amplitude scale factor in
+	      percents applied to the windchest. It is multilied to the
+	      AmplitudeLevel value of the Organ section. 100 means no change.
+	    </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>Gain</term>
+          <listitem>
+            <para>
+	      (float -120 - 40, default: 0) Amplitude scale factor in dB applied
+	      to the windchest. It is added to the Gain value of the Organ
+	      section. 0 means no change.
+	    </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>PitchTuning</term>
+          <listitem>
+            <para>
+	      (float -1800 - 1800, default: 0) Retune the windchest by the
+	      specified number of cents. It is added to the PitchTuning value of
+	      the Organ section. 0 means no change. This setting is used only
+	      for the original temperament.
+	    </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>PitchCorrection</term>
+          <listitem>
+            <para>
+	      (float -1800 - 1800, default: 0) Correction factor in cent for the
+	      pitch of the windchest. It is added to the PitchTuning value of
+	      the Organ section. 0 means no change. This setting is used for
+	      retuning to other temperaments.
+	    </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>TrackerDelay</term>
+          <listitem>
+            <para>
+	      (integer 0 - 10000, default: 0) Delay in miliseconds introduced by
+	      the tracker applied to the windchest. It is added to the
+	      TrackerDelay value of the Organ section.
+	    </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>Percussive</term>
+          <listitem>
+            <para>
+	      (boolean, default inherited from the Organ section) If true, the
+	      samples are played as is (without any loop/release handling).
+	    </para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term>HasIndependentRelease</term>
+          <listitem>
+            <para>
+	      (boolean, default inherited from the Organ section). If true,
+	      releases are played independently of the attacks.
+	    </para>
+            <para>
+	      If HasIndependentRelease is true then Percussive must also be set
+	      to true.
+	    </para>
           </listitem>
         </varlistentry>
       </variablelist>

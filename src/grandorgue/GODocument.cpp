@@ -12,11 +12,13 @@
 #include "config/GOConfig.h"
 #include "dialogs/GOMidiListDialog.h"
 #include "dialogs/GOOrganSettingsDialog.h"
+#include "dialogs/GOStopsDialog.h"
 #include "dialogs/midi-event/GOMidiEventDialog.h"
 #include "document-base/GOView.h"
 #include "gui/GOGUIPanel.h"
 #include "gui/GOGUIPanelView.h"
 #include "midi/GOMidiEvent.h"
+#include "size/GOResizable.h"
 #include "sound/GOSound.h"
 #include "threading/GOMutexLocker.h"
 
@@ -24,7 +26,6 @@
 #include "GOFrame.h"
 #include "GOOrgan.h"
 #include "GOOrganController.h"
-#include "GOResizable.h"
 #include "go_ids.h"
 
 GODocument::GODocument(GOResizable *pMainWindow, GOSound *sound)
@@ -64,7 +65,8 @@ bool GODocument::LoadOrgan(
     CloseOrgan();
     return false;
   }
-  m_sound.GetSettings().AddOrgan(m_OrganController->GetOrganInfo());
+  cfg.AddOrgan(m_OrganController->GetOrganInfo());
+  cfg.Flush();
   {
     wxCommandEvent event(wxEVT_SETVALUE, ID_METER_AUDIO_SPIN);
     event.SetInt(m_OrganController->GetVolume());
@@ -72,16 +74,6 @@ bool GODocument::LoadOrgan(
 
     m_sound.GetEngine().SetVolume(m_OrganController->GetVolume());
   }
-
-  // synchronize cfg.ReleaseTail with OrganReleaseTail.
-  unsigned cfgReleaseTail = cfg.ReleaseLength();
-  unsigned organReleaseTail = m_OrganController->GetReleaseTail();
-
-  if (organReleaseTail) // organReleaseTail has the priority
-    cfg.ReleaseLength(organReleaseTail);
-  else if (cfgReleaseTail)
-    m_OrganController->SetReleaseTail(cfgReleaseTail);
-  cfg.Flush();
 
   wxCommandEvent event(wxEVT_WINTITLE, 0);
   event.SetString(m_OrganController->GetChurchName());
@@ -196,6 +188,18 @@ void GODocument::ShowMidiList() {
         m_OrganController->GetConfig().m_DialogSizes,
         m_OrganController->GetMidiConfigurators()));
   }
+}
+
+void GODocument::ShowStops() {
+  if (!showWindow(GODocument::STOPS, NULL) && m_OrganController)
+    registerWindow(
+      GODocument::STOPS,
+      nullptr,
+      new GOStopsDialog(
+        this,
+        nullptr,
+        m_OrganController->GetConfig().m_DialogSizes,
+        *m_OrganController));
 }
 
 void GODocument::ShowMIDIEventDialog(

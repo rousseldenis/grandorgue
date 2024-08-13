@@ -41,27 +41,27 @@ public:
 
   struct AttackFileInfo {
     GOLoaderFilename filename;
-    int sample_group;
-    bool load_release;
-    bool percussive;
+    std::vector<GOWaveLoop> loops;
     unsigned min_attack_velocity;
     unsigned max_released_time;
     int max_playback_time;
     int attack_start;
     int cue_point;
     int release_end;
-    std::vector<GOWaveLoop> loops;
     unsigned m_LoopCrossfadeLength;
     unsigned m_ReleaseCrossfadeLength;
+    GOBool3 m_WaveTremulantStateFor;
+    bool load_release;
+    bool percussive;
   };
 
   struct ReleaseFileInfo {
     GOLoaderFilename filename;
-    int sample_group;
     int max_playback_time;
     int cue_point;
     int release_end;
     unsigned m_ReleaseCrossfadeLength;
+    GOBool3 m_WaveTremulantStateFor;
   };
 
 private:
@@ -76,7 +76,7 @@ private:
     GOWave &wave,
     int attack_start,
     const std::vector<GOWaveLoop> *pSrcLoops,
-    int sample_group,
+    GOBool3 waveTremulantStateFor,
     unsigned bits_per_sample,
     unsigned channels,
     bool compress,
@@ -91,7 +91,7 @@ private:
     const GOLoaderFilename &loaderFilename,
     const char *data,
     GOWave &wave,
-    int sample_group,
+    GOBool3 waveTremulantStateFor,
     unsigned max_playback_time,
     int cue_point,
     int release_end,
@@ -110,7 +110,7 @@ private:
     const std::vector<GOWaveLoop> *loops,
     bool is_attack,
     bool is_release,
-    int sample_group,
+    GOBool3 waveTremulantStateFor,
     unsigned max_playback_time,
     int attack_start,
     int cue_point,

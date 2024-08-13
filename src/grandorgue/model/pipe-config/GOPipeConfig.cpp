@@ -6,9 +6,9 @@
  */
 
 #include "GOPipeConfig.h"
-
 #include "config/GOConfigReader.h"
 #include "config/GOConfigWriter.h"
+#include <algorithm>
 
 GOPipeConfig::GOPipeConfig(
   GOPipeConfigListener &listener, GOPipeUpdateCallback *callback)
@@ -28,9 +28,12 @@ GOPipeConfig::GOPipeConfig(
     m_DefaultDelay(0),
     m_Delay(0),
     m_ReleaseTail(0),
+    m_ToneBalanceValue(0),
     m_BitsPerSample(-1),
     m_Channels(-1),
     m_LoopLoad(-1),
+    m_Percussive(BOOL3_DEFAULT),
+    m_IndependentRelease(BOOL3_DEFAULT),
     m_Compress(BOOL3_DEFAULT),
     m_AttackLoad(BOOL3_DEFAULT),
     m_ReleaseLoad(BOOL3_DEFAULT),
@@ -109,11 +112,20 @@ void GOPipeConfig::LoadFromCmb(
     CMBSetting, m_Group, m_NamePrefix + wxT("IgnorePitch"), false);
   m_ReleaseTail = (uint16_t)cfg.ReadInteger(
     CMBSetting, group, m_NamePrefix + wxT("ReleaseTail"), 0, 3000, false, 0);
+  m_ToneBalanceValue = cfg.ReadInteger(
+    CMBSetting,
+    m_Group,
+    m_NamePrefix + wxT("ToneBalance"),
+    -100,
+    100,
+    false,
+    0);
 
   m_Callback->UpdateAmplitude();
   m_Callback->UpdateTuning();
   m_Callback->UpdateAudioGroup();
   m_Callback->UpdateReleaseTail();
+  m_Callback->UpdateToneBalance();
 }
 
 void GOPipeConfig::Init(
@@ -123,11 +135,16 @@ void GOPipeConfig::Init(
   m_PitchTuning = 0;
   m_PitchCorrection = 0;
   m_DefaultDelay = 0;
+  m_Percussive = BOOL3_DEFAULT;
+  m_IndependentRelease = BOOL3_DEFAULT;
   LoadFromCmb(cfg, group, prefix);
 }
 
 void GOPipeConfig::Load(
-  GOConfigReader &cfg, const wxString &group, const wxString &prefix) {
+  GOConfigReader &cfg,
+  const wxString &group,
+  const wxString &prefix,
+  bool isParentPercussive) {
   m_DefaultAmplitude = cfg.ReadFloat(
     ODFSetting, group, prefix + wxT("AmplitudeLevel"), 0, 1000, false, 100);
   m_DefaultGain = cfg.ReadFloat(
@@ -138,6 +155,12 @@ void GOPipeConfig::Load(
     ODFSetting, group, prefix + wxT("PitchCorrection"), -1800, 1800, false, 0);
   m_DefaultDelay = cfg.ReadInteger(
     ODFSetting, group, prefix + wxT("TrackerDelay"), 0, 10000, false, 0);
+  m_Percussive = cfg.ReadBooleanTriple(
+    ODFSetting, group, prefix + wxT("Percussive"), false);
+  m_IndependentRelease = to_bool(m_Percussive, isParentPercussive)
+    ? cfg.ReadBooleanTriple(
+      ODFSetting, group, prefix + wxT("HasIndependentRelease"), false)
+    : BOOL3_DEFAULT;
   LoadFromCmb(cfg, group, prefix);
 }
 
@@ -160,12 +183,20 @@ void GOPipeConfig::Save(GOConfigWriter &cfg) {
     m_Group, m_NamePrefix + wxT("IgnorePitch"), m_IgnorePitch);
   cfg.WriteInteger(
     m_Group, m_NamePrefix + wxT("ReleaseTail"), (int)m_ReleaseTail);
+  cfg.WriteInteger(
+    m_Group, m_NamePrefix + wxT("ToneBalance"), m_ToneBalanceValue);
 }
 
 void GOPipeConfig::SetPitchMember(float cents, float &member) {
-  if (cents < -1800)
-    cents = -1800;
-  if (cents > 1800)
-    cents = 1800;
-  SetSmallMember(cents, member, &GOPipeUpdateCallback::UpdateTuning);
+  SetSmallMember(
+    std::clamp(cents, -1800.0f, 1800.0f),
+    member,
+    &GOPipeUpdateCallback::UpdateTuning);
+}
+
+void GOPipeConfig::SetToneBalanceValue(int8_t value) {
+  SetSmallMember(
+    std::clamp(value, (int8_t)-100, (int8_t)100),
+    m_ToneBalanceValue,
+    &GOPipeUpdateCallback::UpdateToneBalance);
 }

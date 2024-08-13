@@ -1,5 +1,5 @@
 # Copyright 2006 Milan Digital Audio LLC
-# Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+# Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
 # License GPL-2.0 or later
 # (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
 
@@ -29,7 +29,21 @@ elseif(NOT BUILD_VERSION)
   set(BUILD_VERSION "0.0")
 endif()
 
+
+if (NOT DEFINED GO_BUILD_TESTING OR GO_BUILD_TESTING STREQUAL "")
+  set(GO_BUILD_TESTING ${BUILD_TESTING})
+endif()
+
 set(FULL_VERSION "${PROJECT_VERSION}-${BUILD_VERSION}")
+
+# Set GITHUB_PROJECT variable that is used to configure update checking
+if (NOT DEFINED GITHUB_PROJECT)
+  set(GITHUB_PROJECT "GrandOrgue/grandorgue")
+endif()
+
+# Define a c++ standard
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "The C++ standard whose features are requested to build this project")
 
 # Build configuration options
 option(RTAUDIO_USE_CORE       "Enable RtAudio support for Core Audio (Rt and PortAudio - OS X only)" ON)
@@ -68,13 +82,11 @@ include(${CMAKE_SOURCE_DIR}/cmake/FindTools.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/BuildLibrary.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/BuildExecutable.cmake)
 
-add_cxx_option(-std=c++11)
-
 IF (APPLE)
   set(BININSTDIR "${PROJECT_NAME}.app/Contents/MacOS")
-  SET(LIBINSTDIR "${PROJECT_NAME}.app/Contents/MacOS")
+  SET(LIBINSTDIR "${PROJECT_NAME}.app/Contents/Frameworks")
   SET(RESOURCEINSTDIR "${PROJECT_NAME}.app/Contents/Resources")
-  SET(RPATH_PREFIX "@executable_path")
+  SET(RPATH_PREFIX "${PROJECT_NAME}.app/Contents/Frameworks")
 ELSE()
   set(BININSTDIR "bin")
   IF (WIN32)
@@ -184,6 +196,10 @@ else()
   set(ZITACONVOLVER_LIBRARIES zita-convolver)
 endif()
 
+# include libcurl for automatic cheking for updates
+# exports CURL::libcurl that can be used in target_link_libraries
+find_package(CURL REQUIRED)
+
 # include FFTW
 pkg_check_modules(FFTW REQUIRED fftw3f)
 
@@ -200,6 +216,15 @@ message(STATUS "  wxWidgets config binary     : ${wxWidgets_CONFIG_EXECUTABLE}")
 message(STATUS "  wxWidgets configuration     : ${wxWidgets_CONFIGURATION}")
 message(STATUS "============================================================================")
 
+
+if (GO_BUILD_TESTING)
+    # Add coverage configuration to include project files - Don't put extra libraries here under
+    set(CMAKE_CXX_FLAGS_DEBUG "-g --coverage")
+    message(STATUS "============================================================================")
+    message(STATUS " Coverage enabled")
+    message(STATUS "============================================================================")
+endif()
+
 add_subdirectory(src/build)
 add_subdirectory(src/images)
 add_subdirectory(src/core)
@@ -211,6 +236,15 @@ add_subdirectory(sounds)
 add_subdirectory(packages)
 add_subdirectory(perftests)
 add_subdirectory(resources)
+
+if (GO_BUILD_TESTING)
+  enable_testing()
+  add_subdirectory(src/tests)
+  
+  message(STATUS "============================================================================")
+  message(STATUS " Testing enabled")
+  message(STATUS "============================================================================")
+endif()
 
 
 # packaging
@@ -266,18 +300,26 @@ set(CPACK_COMPONENT_UNSPECIFIED_DEPENDS resources)
 set(CPACK_COMPONENT_DEMO_DEPENDS Unspecified)
 
 if (APPLE)
-   # see the following URL for information about these variables
-   # https://developer.apple.com/library/mac/#documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-   set(BUNDLE_CFBundleShortVersionString ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_STAGE})
-   set(BUNDLE_CFBundleVersion ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_STAGE})
+  # see the following URL for information about these variables
+  # https://developer.apple.com/library/mac/#documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+  set(BUNDLE_CFBundleShortVersionString ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_STAGE})
+  set(BUNDLE_CFBundleVersion ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_STAGE})
 
-   set(CPACK_PACKAGE_ICON "${RESOURCEDIR}/GrandOrgue.icns")
+  set(CPACK_PACKAGE_ICON "${RESOURCEDIR}/GrandOrgue.icns")
 
-   configure_file(${CMAKE_SOURCE_DIR}/src/grandorgue/resource/Info.plist.in ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.app/Contents/Info.plist)
-   INSTALL(FILES ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.app/Contents/Info.plist DESTINATION "${PROJECT_NAME}.app/Contents/")
+  configure_file(${CMAKE_SOURCE_DIR}/src/grandorgue/resource/Info.plist.in ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.app/Contents/Info.plist)
+  INSTALL(FILES ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.app/Contents/Info.plist DESTINATION "${PROJECT_NAME}.app/Contents/")
 
-  set (CPACK_SYSTEM_NAME "osx")
-  set (CPACK_GENERATOR DragNDrop)
+  add_custom_target(
+    macOSApplication
+    ALL
+    DEPENDS GrandOrgue GrandOrgueTool GrandOrguePerfTest resources # run after building these targets
+    COMMAND "${CMAKE_COMMAND}" -DAPP_DIR="${CMAKE_BINARY_DIR}" -P "${CMAKE_SOURCE_DIR}/cmake/SignMacOSApp.cmake"
+  )
+
+  set(CPACK_SYSTEM_NAME "macOS")
+  set(CPACK_GENERATOR DragNDrop)
+  set(CPACK_PRE_BUILD_SCRIPTS "${CMAKE_SOURCE_DIR}/cmake/SignMacOSApp.cmake")
 
 elseif (WIN32)
 
@@ -344,6 +386,17 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   set(CPACK_RPM_DEMO_PACKAGE_ARCHITECTURE noarch)
   set(CPACK_RPM_DEMO_FILE_NAME RPM-DEFAULT)
   string (REPLACE ";" " " CPACK_RPM_PACKAGE_OBSOLETES "${OTHER_PACKAGE_NAMES}")
+
+  # On Ubuntu rpmbuild generates a libcurl.so.4(CURL_OPENSSL_4)(64bit) requirement for libcurl.
+  # In Fedora libcurl is based on openssl, but libcurl package does not provide such symbol.
+  # As a workaround, we set the right symbol manually.
+  set(CPACK_RPM_SPEC_MORE_DEFINE "%global __requires_exclude libcurl.*")
+  if("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "aarch64" OR "${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86_64")
+    # dnf tries to install the 32-bit package on x86_64 if '()(64bit)' is omitted
+    set(CPACK_RPM_PACKAGE_REQUIRES "libcurl.so.4()(64bit)")
+  else()
+    set(CPACK_RPM_PACKAGE_REQUIRES "libcurl.so.4")
+  endif()
 
   # prevent rpmlint errors
   set(

@@ -9,9 +9,9 @@
 
 #include <wx/checkbox.h>
 #include <wx/choice.h>
-#include <wx/filepicker.h>
 #include <wx/log.h>
 #include <wx/msgdlg.h>
+#include <wx/sizer.h>
 #include <wx/spinctrl.h>
 #include <wx/stattext.h>
 
@@ -407,6 +407,16 @@ GOSettingsOptions::GOSettingsOptions(GOConfig &settings, wxWindow *parent)
   item6->Add(grid, 0, wxEXPAND | wxALL, 5);
   item9->Add(item6, 0, wxEXPAND | wxALL, 5);
 
+  item6 = new wxStaticBoxSizer(wxVERTICAL, this, _("&Updates"));
+  item9->Add(item6, 0, wxEXPAND | wxALL, 5);
+  item6->Add(
+    m_CheckForUpdatesAtStartup
+    = new wxCheckBox(this, wxID_ANY, _("Check for updates at startup")),
+    0,
+    wxEXPAND | wxALL,
+    5);
+  m_CheckForUpdatesAtStartup->SetValue(m_config.CheckForUpdatesAtStartup());
+
   item0->Add(item9, 1, wxEXPAND | wxALL, 0);
 
   topSizer->Add(item0, 0, wxEXPAND | wxALL, 5);
@@ -416,15 +426,6 @@ GOSettingsOptions::GOSettingsOptions(GOConfig &settings, wxWindow *parent)
 }
 
 bool GOSettingsOptions::TransferDataFromWindow() {
-  if (
-    m_Interpolation->GetSelection() == 1 && m_LosslessCompression->IsChecked())
-    wxMessageBox(
-      _("Polyphase is not supported with lossless compression - "
-        "falling back to linear."),
-      _("Warning"),
-      wxOK | wxICON_WARNING,
-      this);
-
   m_config.LosslessCompression(m_LosslessCompression->IsChecked());
   m_config.ManagePolyphony(m_Limit->IsChecked());
   m_config.CompressCache(m_CompressCache->IsChecked());
@@ -449,6 +450,7 @@ bool GOSettingsOptions::TransferDataFromWindow() {
   m_config.MemoryLimit(m_MemoryLimit->GetValue());
   m_config.MetronomeBPM(m_MetronomeBPM->GetValue());
   m_config.MetronomeMeasure(m_MetronomeMeasure->GetValue());
+  m_config.CheckForUpdatesAtStartup(m_CheckForUpdatesAtStartup->GetValue());
 
   // Language
   const wxStringClientData *const langData

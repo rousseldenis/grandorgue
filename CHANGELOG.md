@@ -1,3 +1,34 @@
+- Fixed loading organ to not abort if reading InfoFilename failed and also fixed showing link in properties dialog if InfoFilename exists
+# 3.15.0 (2024-08-06)
+- Added capability of regex matching audio device names https://github.com/GrandOrgue/grandorgue/issues/1265
+- Added a checkbox-based Stops dialog (Audio/Midi -> Stops) https://github.com/GrandOrgue/grandorgue/issues/1816
+- Fixed not compatibilyty between polyphase interpolation and loseless compression https://github.com/GrandOrgue/grandorgue/issues/710
+- Fixed not sounding of pipe after an enclosure has closed to zero and then opened https://github.com/GrandOrgue/grandorgue/issues/1813
+- Added Midi listener for Panic button and Exit GO function. https://github.com/GrandOrgue/grandorgue/issues/1905
+- Added a tone balance (bass/treble harmonics balance) voicing option
+# 3.14.2 (2024-04-29)
+- Fixed divisional couplers with setter divisionals https://github.com/GrandOrgue/grandorgue/issues/1787
+- Fixed behavior of "Detect complex MIDI setup" with Note events in different cases https://github.com/GrandOrgue/grandorgue/issues/1762
+- Fixed the order of sending midi events from an On indicator. Now they are sent after sending all events from other controls https://github.com/GrandOrgue/grandorgue/issues/1762
+# 3.14.1 (2024-04-17)
+- Fixed changing sound of a playing pipe without Pipe999IsTremulant when a wave tremulant state is changed https://github.com/GrandOrgue/grandorgue/issues/1855
+- Fixed crash on opening a very old config https://github.com/GrandOrgue/grandorgue/discussions/1869
+- Fixed ignoring initial midi setup when loading an organ with a preset without midi events configured https://github.com/GrandOrgue/grandorgue/issues/1785
+- Fixed saving Max release tail to the organ preset https://github.com/GrandOrgue/grandorgue/issues/1804
+- Fixed required package names in the BUILD.md file https://github.com/GrandOrgue/grandorgue/issues/1799
+- Added support of macOS on Apple silicon. GrandOrgue for macOS on Apple silicon requires macOS 14 or higher. GrandOrgue for macOS on Intel requires macOS 12.1 or higher. https://github.com/GrandOrgue/grandorgue/discussions/1153
+- Added ad-hoc code signing of GrandOrgue for macOS https://github.com/GrandOrgue/grandorgue/issues/1835
+- Fixed an error that occurred when trying to install the GrandOrgue RPM package https://github.com/GrandOrgue/grandorgue/issues/1859
+# 3.14.0 (2024-03-29)
+- Fixed crash on loading an organ without a pedal but wit a unison-off coupler https://github.com/GrandOrgue/grandorgue/issues/1846
+- Changed displaying of the right part of paths https://github.com/GrandOrgue/grandorgue/issues/1663
+- Added automatic update checking at startup (configurable) and the ability to check for updates from Help menu  
+- Increased maximum value of allowed size to 32000 https://github.com/GrandOrgue/grandorgue/issues/1840
+- Added capability of specifying AmplitudeLevel, Gain, PitchTuning, PitchCorrection and TrackerDelay, Percussive, HasIndependentRelease at the WindchestGroup level of ODF
+- Added capability of specifying Percussive and HasIndependentRelease at the Organ level of ODF
+- Added capability of playing release of percussive pipes with Pipe999HasIndependentRelease=Y https://github.com/GrandOrgue/grandorgue/issues/1385
+- Fixed different encoding of combination .yaml files on Windows, Linux and MacOS https://github.com/GrandOrgue/grandorgue/issues/1818
+- Added support of "Couple Through" mode of Virtual Couplers https://github.com/GrandOrgue/grandorgue/issues/1657
 - Added capability of loading only GUI panels without audio samples by specifying the "-g" switch from the command line https://github.com/GrandOrgue/grandorgue/issues/1602
 - Removed support of MacOS 11 https://github.com/GrandOrgue/grandorgue/issues/1791
 - Fixed crash on loading an organ with a crescendo in Add mode https://github.com/GrandOrgue/grandorgue/issues/1772

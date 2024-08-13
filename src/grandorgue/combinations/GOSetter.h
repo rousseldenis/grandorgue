@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -88,7 +88,7 @@ private:
 
   void ButtonStateChanged(int id, bool newState) override;
 
-  void ControlChanged(void *control);
+  void ControlChanged(GOControl *control) override;
 
   void PreparePlayback();
 
@@ -130,6 +130,8 @@ public:
   static const wxString KEY_LOAD_FILE;
   static const wxString KEY_SAVE_FILE;
   static const wxString KEY_SAVE_SETTINGS;
+
+  static const wxString KEY_ON_STATE;
 
   static const wxString GROUP_REFRESH_FILES;
   static const wxString GROUP_PREV_FILE;
@@ -198,11 +200,10 @@ public:
   void PushGeneral(
     GOGeneralCombination &cmb, GOButtonControl *pButtonToLight) override;
   void PushDivisional(
-    std::unordered_set<GODivisionalCombination *> &usedCmbs,
     GODivisionalCombination &cmb,
-    GOButtonControl *pButtonToLight);
-  void PushDivisional(
-    GODivisionalCombination &cmb, GOButtonControl *pButtonToLight) override;
+    unsigned startManual,
+    unsigned cmbManual,
+    GOButtonControl *pButtonToLight) override;
 
   /*
    * If current crescendo is in override mode then returns nullptr

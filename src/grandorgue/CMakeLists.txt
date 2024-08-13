@@ -1,5 +1,5 @@
 # Copyright 2006 Milan Digital Audio LLC
-# Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+# Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
 # License GPL-2.0 or later (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
 
 include(${CMAKE_SOURCE_DIR}/cmake/AddLinkerOption.cmake)
@@ -55,7 +55,10 @@ combinations/model/GODivisionalCombination.cpp
 combinations/model/GOGeneralCombination.cpp
 combinations/GODivisionalSetter.cpp
 combinations/GOSetter.cpp
+config/GOAudioDeviceConfig.cpp
+config/GOAudioDeviceNode.cpp
 config/GOConfig.cpp
+config/GODeviceNamePattern.cpp
 config/GOMidiDeviceConfig.cpp
 config/GOMidiDeviceConfigList.cpp
 config/GOPortsConfig.cpp
@@ -76,10 +79,10 @@ dialogs/midi-event/GOMidiEventKeyTab.cpp
 dialogs/midi-event/GOMidiEventRecvTab.cpp
 dialogs/midi-event/GOMidiEventSendTab.cpp
 dialogs/settings/GOSettingsAudio.cpp
+dialogs/settings/GOSettingsDeviceMatchDialog.cpp
 dialogs/settings/GOSettingsDialog.cpp
 dialogs/settings/GOSettingsMidiDeviceList.cpp
 dialogs/settings/GOSettingsMidiDevices.cpp
-dialogs/settings/GOSettingsMidiMatchDialog.cpp
 dialogs/settings/GOSettingsMidiMessage.cpp
 dialogs/settings/GOSettingsPaths.cpp
 dialogs/settings/GOSettingsPorts.cpp
@@ -88,10 +91,12 @@ dialogs/settings/GOSettingsOrgans.cpp
 dialogs/settings/GOSettingsReverb.cpp
 dialogs/settings/GOSettingsTemperaments.cpp
 dialogs/GOMidiListDialog.cpp
+dialogs/GONewReleaseDialog.cpp
 dialogs/GOOrganSettingsDialog.cpp
 dialogs/GOProgressDialog.cpp
 dialogs/GOSelectOrganDialog.cpp
 dialogs/GOSplash.cpp
+dialogs/GOStopsDialog.cpp
 document-base/GODocumentBase.cpp
 document-base/GOView.cpp
 gui/primitives/GOBitmap.cpp
@@ -122,7 +127,6 @@ gui/GOGUIPanel.cpp
 gui/GOGUIPanelWidget.cpp
 gui/GOGUIRecorderPanel.cpp
 gui/GOGUISequencerPanel.cpp
-gui/GOGUISizeKeeper.cpp
 help/GOHelpController.cpp
 help/GOHelpRequestor.cpp
 loader/GOFileStore.cpp
@@ -160,7 +164,6 @@ model/GOCacheObject.cpp
 model/GOCoupler.cpp
 model/GODivisionalCoupler.cpp
 model/GODrawStop.cpp
-model/GODummyPipe.cpp
 model/GOEnclosure.cpp
 model/GOEventHandlerList.cpp
 model/GOManual.cpp
@@ -174,21 +177,24 @@ model/GOSwitch.cpp
 model/GOTremulant.cpp
 model/GOWindchest.cpp
 modification/GOModificationProxy.cpp
+size/GOSizeKeeper.cpp
 sound/ports/GOSoundJackPort.cpp
 sound/ports/GOSoundPort.cpp
 sound/ports/GOSoundPortFactory.cpp
 sound/ports/GOSoundPortaudioPort.cpp
 sound/ports/GOSoundRtPort.cpp
-sound/scheduler/GOSoundGroupWorkItem.cpp
-sound/scheduler/GOSoundOutputWorkItem.cpp
-sound/scheduler/GOSoundReleaseWorkItem.cpp
+sound/scheduler/GOSoundGroupTask.cpp
+sound/scheduler/GOSoundOutputTask.cpp
+sound/scheduler/GOSoundReleaseTask.cpp
 sound/scheduler/GOSoundScheduler.cpp
 sound/scheduler/GOSoundThread.cpp
-sound/scheduler/GOSoundTouchWorkItem.cpp
-sound/scheduler/GOSoundTremulantWorkItem.cpp
-sound/scheduler/GOSoundWindchestWorkItem.cpp
+sound/scheduler/GOSoundTouchTask.cpp
+sound/scheduler/GOSoundTremulantTask.cpp
+sound/scheduler/GOSoundWindchestTask.cpp
 sound/GOSoundAudioSection.cpp
+sound/GOSoundDevInfo.cpp
 sound/GOSoundEngine.cpp
+sound/GOSoundFader.cpp
 sound/GOSoundProvider.cpp
 sound/GOSoundProviderSynthedTrem.cpp
 sound/GOSoundProviderWave.cpp
@@ -200,10 +206,16 @@ sound/GOSoundReverbPartition.cpp
 sound/GOSoundResample.cpp
 sound/GOSoundSamplerPool.cpp
 sound/GOSoundStateHandler.cpp
+sound/GOSoundStream.cpp
 sound/GOSound.cpp
+sound/GOSoundFilter.cpp
+sound/GOSoundToneBalanceFilter.cpp
+updater/GOUpdateChecker.cpp
 yaml/GOSaveableToYaml.cpp
 yaml/go-wx-yaml.cpp
-GOAudioGauge.cpp
+wxcontrols/GOAudioGauge.cpp
+wxcontrols/GOGrid.cpp
+wxcontrols/GORightVisiblePicker.cpp
 GOAudioRecorder.cpp
 GOBitmapCache.cpp
 GOEvent.cpp
@@ -223,7 +235,7 @@ if (USE_INTERNAL_ZITACONVOLVER)
 endif()
 
 add_library(golib STATIC ${grandorgue_src})
-set(go_libs ${wxWidgets_LIBRARIES} ${YAML_CPP_LIBRARIES} ${RT_LIBRARIES} ${PORTAUDIO_LIBRARIES} ${FFTW_LIBRARIES} ${ZITACONVOLVER_LIBRARIES})
+set(go_libs ${wxWidgets_LIBRARIES} ${YAML_CPP_LIBRARIES} ${RT_LIBRARIES} ${PORTAUDIO_LIBRARIES} ${FFTW_LIBRARIES} ${ZITACONVOLVER_LIBRARIES} CURL::libcurl)
 set(go_libdir ${wxWidgets_LIBRARY_DIRS} ${RT_LIBDIR} ${PORTAUDIO_LIBDIR} ${FFTW_LIBDIR})
 target_link_libraries(golib GrandOrgueImages GrandOrgueCore ${go_libs})
 link_directories(${go_libdir})

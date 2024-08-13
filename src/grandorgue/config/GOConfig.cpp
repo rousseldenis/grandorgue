@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2024 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -194,7 +194,6 @@ GOConfig::GOConfig(wxString instance)
     PolyphonyLimit(
       this, wxT("General"), wxT("PolyphonyLimit"), 0, MAX_POLYPHONY, 2048),
     Preset(this, wxT("General"), wxT("Preset"), 0, MAX_PRESET, 0),
-    ReleaseLength(this, wxT("General"), wxT("ReleaseLength"), 0, 3000, 0),
     LanguageCode(this, wxT("General"), wxT("Language"), wxEmptyString),
     BitsPerSample(this, wxT("General"), wxT("BitsPerSample"), 8, 24, 24),
     Transpose(this, wxT("General"), wxT("Transpose"), -11, 11, 0),
@@ -215,32 +214,10 @@ GOConfig::GOConfig(wxString instance)
     MidiRecorderPath(
       this, wxT("General"), wxT("MIDIRecorderPath"), wxEmptyString),
     MidiPlayerPath(this, wxT("General"), wxT("MIDIPlayerPath"), wxEmptyString),
+    CheckForUpdatesAtStartup(
+      this, wxT("General"), wxT("CheckForUpdatesAtStartup"), true),
     m_MidiIn(MIDI_IN),
-    m_MidiOut(MIDI_OUT) {
-  m_ConfigFileName = GOStdPath::GetConfigDir() + wxFileName::GetPathSeparator()
-    + wxT("GrandOrgueConfig") + m_InstanceName;
-  for (unsigned i = 0; i < GetEventCount(); i++)
-    m_MIDIEvents.push_back(new GOMidiReceiverBase(m_MIDISettings[i].type));
-  m_ResourceDir = GOStdPath::GetResourceDir();
-
-  OrganPath.setDefaultValue(GOStdPath::GetGrandOrgueSubDir(_("Organs")));
-  OrganPackagePath.setDefaultValue(
-    GOStdPath::GetGrandOrgueSubDir(_("Organ packages")));
-  OrganCachePath.setDefaultValue(
-    GOStdPath::GetGrandOrgueSubDir(wxT("Cache") + m_InstanceName));
-  OrganSettingsPath.setDefaultValue(
-    GOStdPath::GetGrandOrgueSubDir(wxT("Data") + m_InstanceName));
-  OrganCombinationsPath.setDefaultValue(
-    GOStdPath::GetGrandOrgueSubDir(_("Combinations")));
-  ExportImportPath.setDefaultValue(
-    GOStdPath::GetGrandOrgueSubDir(_("Settings")));
-  AudioRecorderPath.setDefaultValue(
-    GOStdPath::GetGrandOrgueSubDir(_("Audio recordings")));
-  MidiRecorderPath.setDefaultValue(
-    GOStdPath::GetGrandOrgueSubDir(_("MIDI recordings")));
-  MidiPlayerPath.setDefaultValue(
-    GOStdPath::GetGrandOrgueSubDir(_("MIDI recordings")));
-}
+    m_MidiOut(MIDI_OUT) {}
 
 GOConfig::~GOConfig() { /* Flush(); */
 }
@@ -285,6 +262,9 @@ void save_ports_config(
 }
 
 void GOConfig::Load() {
+  if (m_ConfigFileName.IsEmpty()) {
+    LoadDefaults();
+  }
   GOConfigFileReader cfg_file;
   if (wxFileExists(m_ConfigFileName)) {
     if (!cfg_file.Read(m_ConfigFileName))
@@ -335,49 +315,21 @@ void GOConfig::Load() {
 
     m_AudioDeviceConfig.clear();
     count = cfg.ReadInteger(
-      CMBSetting, wxT("AudioDevices"), COUNT, 0, 200, false, 0);
-    for (unsigned i = 0; i < count; i++) {
-      GOAudioDeviceConfig conf;
-      conf.name = cfg.ReadString(
-        CMBSetting,
-        wxT("AudioDevices"),
-        wxString::Format(wxT("Device%03dName"), i + 1));
-      conf.channels = cfg.ReadInteger(
-        CMBSetting,
-        wxT("AudioDevices"),
-        wxString::Format(wxT("Device%03dChannelCount"), i + 1),
-        0,
-        200);
-      conf.desired_latency = cfg.ReadInteger(
-        CMBSetting,
-        wxT("AudioDevices"),
-        wxString::Format(wxT("Device%03dLatency"), i + 1),
-        0,
-        999,
-        false,
-        GetDefaultLatency());
-      conf.scale_factors.resize(conf.channels);
-      for (unsigned j = 0; j < conf.channels; j++) {
-        wxString prefix
-          = wxString::Format(wxT("Device%03dChannel%03d"), i + 1, j + 1);
-        unsigned group_count = cfg.ReadInteger(
-          CMBSetting, wxT("AudioDevices"), prefix + wxT("GroupCount"), 0, 200);
-        for (unsigned k = 0; k < group_count; k++) {
-          GOAudioGroupOutputConfig group;
-          wxString p = prefix + wxString::Format(wxT("Group%03d"), k + 1);
+      CMBSetting,
+      GOAudioDeviceConfig::WX_AUDIO_DEVICES,
+      COUNT,
+      0,
+      200,
+      false,
+      0);
 
-          group.name
-            = cfg.ReadString(CMBSetting, wxT("AudioDevices"), p + wxT("Name"));
-          group.left = cfg.ReadFloat(
-            CMBSetting, wxT("AudioDevices"), p + wxT("Left"), -121.0, 40);
-          group.right = cfg.ReadFloat(
-            CMBSetting, wxT("AudioDevices"), p + wxT("Right"), -121.0, 40);
-
-          conf.scale_factors[j].push_back(group);
-        }
+    if (count > 0)
+      for (unsigned i = 0; i < count; i++) {
+        m_AudioDeviceConfig.emplace_back();
+        m_AudioDeviceConfig[i].Load(cfg, i + 1);
       }
-      m_AudioDeviceConfig.push_back(conf);
-    }
+    else // default device config
+      m_AudioDeviceConfig.emplace_back(m_AudioGroups);
 
     load_ports_config(
       cfg, MIDI_PORTS, GOMidiPortFactory::getInstance(), m_MidiPortsConfig);
@@ -417,27 +369,40 @@ void GOConfig::Load() {
   } catch (wxString error) {
     wxLogError(wxT("%s\n"), error.c_str());
   }
+}
 
-  if (!m_AudioDeviceConfig.size()) {
-    GOAudioDeviceConfig conf;
-    conf.name = wxEmptyString;
-    conf.channels = 2;
-    conf.scale_factors.resize(conf.channels);
-    conf.desired_latency = GetDefaultLatency();
-    for (unsigned k = 0; k < m_AudioGroups.size(); k++) {
-      GOAudioGroupOutputConfig group;
-      group.name = m_AudioGroups[k];
+void GOConfig::LoadDefaults() {
 
-      group.left = 0.0f;
-      group.right = -121.0f;
-      conf.scale_factors[0].push_back(group);
+  /* This has to be called in the wxApp context
+     e.g.: after having done the wxApp::OnInit() call.
 
-      group.left = -121.0f;
-      group.right = 0.0f;
-      conf.scale_factors[1].push_back(group);
-    }
-    m_AudioDeviceConfig.push_back(conf);
-  }
+     As wx is waiting for the wxApp to have been initialized
+     before calling th Get() method.
+  */
+
+  m_ConfigFileName = GOStdPath::GetConfigDir() + wxFileName::GetPathSeparator()
+    + wxT("GrandOrgueConfig") + m_InstanceName;
+  for (unsigned i = 0; i < GetEventCount(); i++)
+    m_MIDIEvents.push_back(new GOMidiReceiverBase(m_MIDISettings[i].type));
+  m_ResourceDir = GOStdPath::GetResourceDir();
+
+  OrganPath.setDefaultValue(GOStdPath::GetGrandOrgueSubDir(_("Organs")));
+  OrganPackagePath.setDefaultValue(
+    GOStdPath::GetGrandOrgueSubDir(_("Organ packages")));
+  OrganCachePath.setDefaultValue(
+    GOStdPath::GetGrandOrgueSubDir(wxT("Cache") + m_InstanceName));
+  OrganSettingsPath.setDefaultValue(
+    GOStdPath::GetGrandOrgueSubDir(wxT("Data") + m_InstanceName));
+  OrganCombinationsPath.setDefaultValue(
+    GOStdPath::GetGrandOrgueSubDir(_("Combinations")));
+  ExportImportPath.setDefaultValue(
+    GOStdPath::GetGrandOrgueSubDir(_("Settings")));
+  AudioRecorderPath.setDefaultValue(
+    GOStdPath::GetGrandOrgueSubDir(_("Audio recordings")));
+  MidiRecorderPath.setDefaultValue(
+    GOStdPath::GetGrandOrgueSubDir(_("MIDI recordings")));
+  MidiPlayerPath.setDefaultValue(
+    GOStdPath::GetGrandOrgueSubDir(_("MIDI recordings")));
 }
 
 int GOConfig::GetLanguageId() const {
@@ -610,10 +575,6 @@ int GOConfig::GetStrictAudioGroupId(const wxString &str) {
   return -1;
 }
 
-const std::vector<GOAudioDeviceConfig> &GOConfig::GetAudioDeviceConfig() {
-  return m_AudioDeviceConfig;
-}
-
 void GOConfig::SetAudioDeviceConfig(
   const std::vector<GOAudioDeviceConfig> &config) {
   if (!config.size())
@@ -625,7 +586,7 @@ const unsigned GOConfig::GetTotalAudioChannels() const {
   unsigned channels = 0;
 
   for (const GOAudioDeviceConfig &deviceConfig : m_AudioDeviceConfig)
-    channels += deviceConfig.channels;
+    channels += deviceConfig.GetChannels();
   return channels;
 }
 
@@ -663,45 +624,12 @@ void GOConfig::Flush() {
   save_ports_config(
     cfg, SOUND_PORTS, GOSoundPortFactory::getInstance(), m_SoundPortsConfig);
 
-  for (unsigned i = 0; i < m_AudioDeviceConfig.size(); i++) {
-    cfg.WriteString(
-      wxT("AudioDevices"),
-      wxString::Format(wxT("Device%03dName"), i + 1),
-      m_AudioDeviceConfig[i].name);
-    cfg.WriteInteger(
-      wxT("AudioDevices"),
-      wxString::Format(wxT("Device%03dChannelCount"), i + 1),
-      m_AudioDeviceConfig[i].channels);
-    cfg.WriteInteger(
-      wxT("AudioDevices"),
-      wxString::Format(wxT("Device%03dLatency"), i + 1),
-      m_AudioDeviceConfig[i].desired_latency);
-    for (unsigned j = 0; j < m_AudioDeviceConfig[i].channels; j++) {
-      wxString prefix
-        = wxString::Format(wxT("Device%03dChannel%03d"), i + 1, j + 1);
-      cfg.WriteInteger(
-        wxT("AudioDevices"),
-        prefix + wxT("GroupCount"),
-        m_AudioDeviceConfig[i].scale_factors[j].size());
-      for (unsigned k = 0; k < m_AudioDeviceConfig[i].scale_factors[j].size();
-           k++) {
-        wxString p = prefix + wxString::Format(wxT("Group%03d"), k + 1);
-        cfg.WriteString(
-          wxT("AudioDevices"),
-          p + wxT("Name"),
-          m_AudioDeviceConfig[i].scale_factors[j][k].name);
-        cfg.WriteFloat(
-          wxT("AudioDevices"),
-          p + wxT("Left"),
-          m_AudioDeviceConfig[i].scale_factors[j][k].left);
-        cfg.WriteFloat(
-          wxT("AudioDevices"),
-          p + wxT("Right"),
-          m_AudioDeviceConfig[i].scale_factors[j][k].right);
-      }
-    }
-  }
-  cfg.WriteInteger(wxT("AudioDevices"), COUNT, m_AudioDeviceConfig.size());
+  const unsigned audioDeviceCount = m_AudioDeviceConfig.size();
+
+  for (unsigned i = 0; i < audioDeviceCount; i++)
+    m_AudioDeviceConfig[i].Save(cfg, i + 1);
+  cfg.WriteInteger(
+    GOAudioDeviceConfig::WX_AUDIO_DEVICES, COUNT, audioDeviceCount);
 
   save_ports_config(
     cfg, MIDI_PORTS, GOMidiPortFactory::getInstance(), m_MidiPortsConfig);

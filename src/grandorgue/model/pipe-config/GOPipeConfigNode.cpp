@@ -43,7 +43,8 @@ void GOPipeConfigNode::Init(
 void GOPipeConfigNode::Load(
   GOConfigReader &cfg, const wxString &group, const wxString &prefix) {
   r_OrganModel.RegisterSaveableObject(this);
-  m_PipeConfig.Load(cfg, group, prefix);
+  m_PipeConfig.Load(
+    cfg, group, prefix, m_parent && m_parent->GetEffectivePercussive());
 }
 
 wxString GOPipeConfigNode::GetEffectiveAudioGroup() const {
@@ -71,6 +72,13 @@ uint16_t GOPipeConfigNode::GetEffectiveReleaseTail() const {
   if (thisReleaseTail && (!releaseTail || thisReleaseTail < releaseTail))
     releaseTail = thisReleaseTail;
   return releaseTail;
+}
+
+int8_t GOPipeConfigNode::GetEffectiveToneBalanceValue() const {
+  if (m_PipeConfig.GetToneBalanceValue())
+    return m_PipeConfig.GetToneBalanceValue();
+  else
+    return m_parent ? m_parent->GetEffectiveToneBalanceValue() : 0;
 }
 
 uint8_t GOPipeConfigNode::GetEffectiveUint8(
