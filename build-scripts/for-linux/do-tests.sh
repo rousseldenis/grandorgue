@@ -6,6 +6,7 @@
 set -e
 
 STEP=$1
+export TERM=xterm-color
 
 TEST_SCRIPT="ctest -T test --verbose"
 COVERAGE_SCRIPT="ctest -T coverage"

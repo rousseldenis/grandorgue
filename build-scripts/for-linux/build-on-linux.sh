@@ -27,6 +27,7 @@ pushd build/linux
 
 rm -rf *
 export LANG=C
+export TERM=xterm-color
 
 GO_PRMS="-DCMAKE_BUILD_TYPE=Release \
   $CMAKE_VERSION_PRMS \

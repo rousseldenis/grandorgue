@@ -14,6 +14,7 @@ SRC_DIR=$(readlink -f $(dirname $0)/../..)
 TARGET_ARCH=${2:$(dpkg --print-architecture)}
 
 export LANG=C
+export TERM=xterm-color
 
 # Define BUILD_TESTING=ON
 GO_PRMS="-DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
